@@ -13,12 +13,13 @@ h1 { text-align: center; font-size: 2.2rem; margin-bottom: 4px; color: #fff; }
 .batch-title { font-size: 1rem; font-weight: 700; color: #aaa; text-transform: uppercase;
                letter-spacing: 2px; margin-bottom: 14px; border-bottom: 1px solid #222;
                padding-bottom: 6px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .card { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 8px;
         padding: 14px 12px; display: flex; flex-direction: column; gap: 6px;
         transition: border-color 0.15s, background 0.15s; }
 .card:hover { border-color: #5566cc; background: #1e1e38; }
 .card.locked { opacity: 0.35; pointer-events: none; }
+.card-preview { width: 100%; height: 60px; border-radius: 4px; margin-bottom: 6px; }
 .card-num { font-size: 0.7rem; color: #555; font-weight: 700; font-family: monospace; }
 .card-name { font-size: 0.95rem; font-weight: 700; color: #e8e8f0; line-height: 1.2; }
 .card-genre { font-size: 0.7rem; padding: 2px 7px; border-radius: 99px; font-weight: 700;
@@ -177,6 +178,14 @@ const GENRE_CLASS = {
   Racing:'g-racing', Rhythm:'g-rhythm', Creative:'g-creative', Luck:'g-luck',
 };
 
+const GENRE_COLOR = {
+  Clicker:'#3a2a1a', Reflex:'#1a3a2a', Memory:'#2a1a3a', Arcade:'#1a2a3a',
+  Puzzle:'#3a3a1a', Word:'#1a3a3a', Trivia:'#3a1a1a', Card:'#2a3a1a', Logic:'#2a2a3a',
+  Shooter:'#3a1a2a', Physics:'#1a3a1a', Platformer:'#3a2a0a', Runner:'#2a3a2a',
+  TowerDef:'#2a1a3a', Strategy:'#0a2a3a', Idle:'#3a3a0a', RPG:'#3a0a0a',
+  Racing:'#0a3a0a', Rhythm:'#0a0a3a', Creative:'#2a0a3a', Luck:'#3a2a3a',
+};
+
 // Detect which files exist by trying to fetch them (or just check checkpoint)
 // For simplicity, we show all cards and let the browser handle 404s on click
 const COMPLETED_BATCH = (() => {
@@ -215,6 +224,7 @@ Object.keys(batches).sort((a,b)=>a-b).forEach(b => {
     const card = document.createElement('div');
     card.className = 'card' + (g.batch > COMPLETED_BATCH ? ' locked' : '');
     card.innerHTML = `
+      <div class="card-preview" style="background: ${GENRE_COLOR[g.genre]};"></div>
       <div class="card-num">#${String(g.num).padStart(3,'0')}</div>
       <div class="card-name">${g.name}</div>
       <span class="card-genre ${GENRE_CLASS[g.genre]||''}">${g.genre}</span>
