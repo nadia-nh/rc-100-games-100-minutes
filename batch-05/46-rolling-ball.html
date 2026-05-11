@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rolling Ball</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="400"></canvas>
+<div id="ui">
+  <span id="msg">Tilt with ← → · Roll to the goal!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=400,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const G=0.4,FRICTION=0.98,R=12;
+let state='idle',ball,platforms,goal,score,level,raf,keys={};
+
+const LEVELS=[
+  {ball:{x:40,y:80},goal:{x:430,y:350},pls:[
+    {x:0,y:370,w:480,h:30},{x:0,y:0,w:10,h:400},{x:470,y:0,w:10,h:400},
+    {x:50,y:160,w:150,h:12},{x:200,y:240,w:150,h:12},{x:100,y:310,w:180,h:12}
+  ]},
+  {ball:{x:40,y:60},goal:{x:430,y:60},pls:[
+    {x:0,y:370,w:480,h:30},{x:0,y:0,w:10,h:400},{x:470,y:0,w:10,h:400},
+    {x:0,y:0,w:480,h:10},
+    {x:60,y:130,w:120,h:12},{x:250,y:100,w:120,h:12},
+    {x:60,y:210,w:100,h:12},{x:280,y:230,w:100,h:12},
+    {x:100,y:300,w:260,h:12}
+  ]},
+  {ball:{x:240,y:30},goal:{x:240,y:350},pls:[
+    {x:0,y:370,w:480,h:30},{x:0,y:0,w:10,h:400},{x:470,y:0,w:10,h:400},
+    {x:0,y:0,w:480,h:10},
+    {x:30,y:100,w:200,h:12},{x:250,y:150,w:200,h:12},
+    {x:30,y:220,w:200,h:12},{x:250,y:270,w:200,h:12}
+  ]}
+];
+
+function loadLevel(n){
+  const lv=LEVELS[n%LEVELS.length];
+  ball={x:lv.ball.x,y:lv.ball.y,vx:0,vy:0,angle:0};
+  goal={x:lv.goal.x,y:lv.goal.y,r:16};
+  platforms=lv.pls.map(p=>({...p}));
+}
+
+function init(){
+  level=0;score=0;loadLevel(0);
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function resolveAABB(bx,by,plat){
+  const left=bx+R-plat.x,right=plat.x+plat.w-(bx-R);
+  const top=by+R-plat.y,bottom=plat.y+plat.h-(by-R);
+  if(left>0&&right>0&&top>0&&bottom>0){
+    const min=Math.min(left,right,top,bottom);
+    if(min===left)return{nx:-1,ny:0,depth:left};
+    if(min===right)return{nx:1,ny:0,depth:right};
+    if(min===top)return{nx:0,ny:-1,depth:top};
+    return{nx:0,ny:1,depth:bottom};
+  }return null;
+}
+
+function update(){
+  if(keys['ArrowLeft']||keys['KeyA'])ball.vx-=0.5;
+  if(keys['ArrowRight']||keys['KeyD'])ball.vx+=0.5;
+  ball.vy+=G;
+  ball.vx*=FRICTION;ball.vy*=FRICTION;
+  ball.x+=ball.vx;ball.y+=ball.vy;
+  ball.angle+=ball.vx*0.05;
+
+  for(const pl of platforms){
+    const col=resolveAABB(ball.x,ball.y,pl);
+    if(col){
+      ball.x+=col.nx*col.depth;ball.y+=col.ny*col.depth;
+      if(col.nx!==0)ball.vx*=-0.5;
+      if(col.ny!==0){ball.vy*=-0.3;if(col.ny<0)ball.vy=Math.min(ball.vy,0);}
+    }
+  }
+
+  const dx=ball.x-goal.x,dy=ball.y-goal.y;
+  if(Math.sqrt(dx*dx+dy*dy)<R+goal.r){
+    score+=100;level++;loadLevel(level);
+    msg.textContent='Level '+(level+1)+'! Score: '+score;
+  }
+  msg.textContent='Level '+(level%LEVELS.length+1)+' ('+Math.ceil(level/LEVELS.length)+'x)  Score: '+score;
+}
+
+function draw(){
+  ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,W,H);
+  platforms.forEach(pl=>{
+    ctx.fillStyle='#4a4a7a';ctx.fillRect(pl.x,pl.y,pl.w,pl.h);
+    ctx.fillStyle='#6a6aaa';ctx.fillRect(pl.x,pl.y,pl.w,4);
+  });
+  // goal
+  ctx.fillStyle='rgba(255,215,0,0.3)';ctx.beginPath();ctx.arc(goal.x,goal.y,goal.r,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#ffd700';ctx.lineWidth=2;ctx.beginPath();ctx.arc(goal.x,goal.y,goal.r,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#ffd700';ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('★',goal.x,goal.y+6);ctx.textAlign='left';
+  // ball
+  ctx.save();ctx.translate(ball.x,ball.y);ctx.rotate(ball.angle);
+  ctx.fillStyle='#3af';ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(3,3,R*0.4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.6)';ctx.beginPath();ctx.arc(-3,-3,R*0.25,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('ROLLING BALL',W/2,H/2-16);ctx.font='13px monospace';
+    ctx.fillText('← → tilt · reach the ★',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(['ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

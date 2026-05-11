@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flow Free Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+canvas { border: 2px solid #333; cursor: pointer; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="360" height="360"></canvas>
+<div id="ui">
+  <span id="msg">Drag to connect matching colors · Fill the board!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=360,H=360,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const COLORS=['#e74c3c','#3498db','#2ecc71','#f1c40f','#e67e22','#9b59b6'];
+
+const LEVELS=[
+  {n:6,dots:[[0,0,0],[5,5,0],[1,0,1],[4,5,1],[0,5,2],[5,0,2],[2,2,3],[3,3,3],[1,4,4],[4,1,4]]},
+  {n:7,dots:[[0,0,0],[6,6,0],[0,6,1],[6,0,1],[3,0,2],[3,6,2],[0,3,3],[6,3,3],[2,2,4],[4,4,4],[1,5,5],[5,1,5]]},
+  {n:8,dots:[[0,0,0],[7,7,0],[0,7,1],[7,0,1],[2,1,2],[5,6,2],[1,2,3],[6,5,3],[3,3,4],[4,4,4],[0,4,5],[7,3,5]]}
+];
+
+let level=0,N,T,dots,paths,dragging,dragColor,state='idle';
+
+function loadLevel(li){
+  const lv=LEVELS[li%LEVELS.length];
+  N=lv.n;T=W/N;dots=lv.dots;
+  paths=Array(COLORS.length).fill(null).map(()=>[]);
+  dragging=false;dragColor=-1;
+}
+
+function init(){
+  level=0;loadLevel(0);state='playing';btn.textContent='Restart';
+  msg.textContent='Level 1 · Connect all colors!';draw();
+}
+
+function cellAt(mx,my){return{c:Math.floor(mx/T),r:Math.floor(my/T)};}
+
+function dotAt(r,c){return dots.find(d=>d[0]===c&&d[1]===r);}
+
+function startDrag(r,c){
+  const d=dotAt(r,c);if(!d)return;
+  dragColor=d[2];
+  // clear existing path for this color
+  paths[dragColor]=[[c,r]];
+  dragging=true;
+}
+
+function extendDrag(r,c){
+  if(!dragging)return;
+  const path=paths[dragColor];
+  const last=path[path.length-1];
+  if(last[0]===c&&last[1]===r)return;
+  // must be adjacent
+  if(Math.abs(last[0]-c)+Math.abs(last[1]-r)!==1)return;
+  // can't overlap another color's path
+  for(let ci=0;ci<paths.length;ci++){
+    if(ci===dragColor)continue;
+    if(paths[ci].some(p=>p[0]===c&&p[1]===r))return;
+  }
+  // if hitting another dot of wrong color, stop
+  const hit=dotAt(r,c);
+  if(hit&&hit[2]!==dragColor)return;
+  // if revisiting own path, trim back
+  const idx=path.findIndex(p=>p[0]===c&&p[1]===r);
+  if(idx!==-1){paths[dragColor]=path.slice(0,idx+1);return;}
+  path.push([c,r]);
+}
+
+function endDrag(){dragging=false;checkWin();}
+
+function isConnected(ci){
+  const ends=dots.filter(d=>d[2]===ci);if(ends.length<2)return false;
+  const path=paths[ci];if(path.length<2)return false;
+  const s=path[0],e=path[path.length-1];
+  return((s[0]===ends[0][0]&&s[1]===ends[0][1]&&e[0]===ends[1][0]&&e[1]===ends[1][1])||
+         (s[0]===ends[1][0]&&s[1]===ends[1][1]&&e[0]===ends[0][0]&&e[1]===ends[0][1]));
+}
+
+function checkWin(){
+  const usedColors=new Set(dots.map(d=>d[2]));
+  const allConnected=[...usedColors].every(ci=>isConnected(ci));
+  const totalCells=N*N;
+  const filled=paths.reduce((s,p)=>s+p.length,0);
+  if(allConnected&&filled===totalCells){
+    level++;loadLevel(level);
+    msg.textContent=`Level ${level%LEVELS.length+1}!`;
+  }
+  draw();
+}
+
+function draw(){
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='#222';ctx.lineWidth=1;
+  for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(i*T,0);ctx.lineTo(i*T,H);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,i*T);ctx.lineTo(W,i*T);ctx.stroke();}
+  // paths
+  paths.forEach((path,ci)=>{
+    if(path.length<2)return;
+    ctx.strokeStyle=COLORS[ci];ctx.lineWidth=T*0.45;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();path.forEach(([c,r],i)=>{
+      const x=c*T+T/2,y=r*T+T/2;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });ctx.stroke();
+  });
+  // dots
+  dots.forEach(([c,r,ci])=>{
+    ctx.fillStyle=COLORS[ci];ctx.beginPath();ctx.arc(c*T+T/2,r*T+T/2,T*0.3,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=2;ctx.stroke();
+  });
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('FLOW FREE',W/2,H/2-16);ctx.font='13px monospace';
+    ctx.fillText('Drag to connect · Fill all cells',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+canvas.addEventListener('mousedown',e=>{
+  if(state==='idle'){init();return;}
+  const r=canvas.getBoundingClientRect();
+  const {c,r:row}=cellAt(e.clientX-r.left,e.clientY-r.top);
+  startDrag(row,c);draw();
+});
+canvas.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const r=canvas.getBoundingClientRect();
+  const {c,r:row}=cellAt(e.clientX-r.left,e.clientY-r.top);
+  extendDrag(row,c);draw();
+});
+canvas.addEventListener('mouseup',endDrag);
+canvas.addEventListener('mouseleave',endDrag);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

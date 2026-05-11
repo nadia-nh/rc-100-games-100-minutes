@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dots and Boxes</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 10px; }
+canvas { border: 2px solid #ccc; cursor: pointer; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="380" height="380"></canvas>
+<div id="ui">
+  <span id="msg">Click a line between dots to claim it!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=380,H=380,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const N=5,PAD=40,STEP=(W-PAD*2)/N,DOT=6,NEAR=14;
+let hlines,vlines,boxes,scores,turn,hover,state='idle';
+
+function init(){
+  hlines=Array(N+1).fill(null).map(()=>Array(N).fill(0));
+  vlines=Array(N).fill(null).map(()=>Array(N+1).fill(0));
+  boxes=Array(N).fill(null).map(()=>Array(N).fill(0));
+  scores=[0,0];turn=0;hover=null;state='playing';btn.textContent='Restart';
+  msg.textContent='Your turn (blue)! Click a line.';draw();
+}
+
+function dotX(c){return PAD+c*STEP;}
+function dotY(r){return PAD+r*STEP;}
+
+function nearestLine(mx,my){
+  let best=null,bestD=NEAR*2;
+  // horizontal lines
+  for(let r=0;r<=N;r++)for(let c=0;c<N;c++){
+    const x1=dotX(c),x2=dotX(c+1),y=dotY(r);
+    const px=Math.max(x1,Math.min(x2,mx)),py=y;
+    const d=Math.hypot(mx-px,my-py);
+    if(d<bestD){bestD=d;best={type:'h',r,c};}
+  }
+  // vertical lines
+  for(let r=0;r<N;r++)for(let c=0;c<=N;c++){
+    const x=dotX(c),y1=dotY(r),y2=dotY(r+1);
+    const px=x,py=Math.max(y1,Math.min(y2,my));
+    const d=Math.hypot(mx-px,my-py);
+    if(d<bestD){bestD=d;best={type:'v',r,c};}
+  }
+  return best;
+}
+
+function checkBoxes(r,c,player){
+  // check all 4 adjacent boxes
+  let claimed=0;
+  [[r,c],[r,c-1],[r-1,c],[r-1,c-1]].forEach(([br,bc])=>{
+    if(br<0||br>=N||bc<0||bc>=N)return;
+    if(hlines[br][bc]&&hlines[br+1][bc]&&vlines[br][bc]&&vlines[br][bc+1]){
+      if(!boxes[br][bc]){boxes[br][bc]=player+1;scores[player]++;claimed++;}
+    }
+  });
+  return claimed;
+}
+
+function clickLine(line){
+  if(!line)return;
+  const{type,r,c}=line;
+  if(type==='h'){if(hlines[r][c])return;hlines[r][c]=turn+1;}
+  else{if(vlines[r][c])return;vlines[r][c]=turn+1;}
+  const claimed=checkBoxes(r,c,turn);
+  if(!claimed)turn=1-turn;
+  const total=scores[0]+scores[1];
+  if(total===N*N){state='over';
+    const winner=scores[0]>scores[1]?'You win!':scores[1]>scores[0]?'AI wins!':'Draw!';
+    msg.textContent=`${winner} You:${scores[0]} AI:${scores[1]}`;
+  } else {
+    msg.textContent=turn===0?`Your turn (blue) · You:${scores[0]} AI:${scores[1]}`:`AI thinking... · You:${scores[0]} AI:${scores[1]}`;
+    if(turn===1)setTimeout(aiMove,400);
+  }
+  draw();
+}
+
+function aiMove(){
+  if(state!=='playing')return;
+  // try to complete a box, else take a safe line, else random
+  const lines=[];
+  for(let r=0;r<=N;r++)for(let c=0;c<N;c++)if(!hlines[r][c])lines.push({type:'h',r,c});
+  for(let r=0;r<N;r++)for(let c=0;c<=N;c++)if(!vlines[r][c])lines.push({type:'v',r,c});
+  // score each move
+  let best=null,bestScore=-1;
+  for(const l of lines){
+    // simulate
+    if(l.type==='h')hlines[l.r][l.c]=2;else vlines[l.r][l.c]=2;
+    let s=0;
+    for(let br=0;br<N;br++)for(let bc=0;bc<N;bc++){
+      if(!boxes[br][bc]&&hlines[br][bc]&&hlines[br+1][bc]&&vlines[br][bc]&&vlines[br][bc+1])s++;
+    }
+    if(l.type==='h')hlines[l.r][l.c]=0;else vlines[l.r][l.c]=0;
+    if(s>bestScore){bestScore=s;best=l;}
+  }
+  if(bestScore===0){
+    // pick a safe move (don't give away boxes)
+    const safe=lines.filter(l=>{
+      if(l.type==='h')hlines[l.r][l.c]=2;else vlines[l.r][l.c]=2;
+      let gives=0;
+      for(let br=0;br<N;br++)for(let bc=0;bc<N;bc++){
+        if(!boxes[br][bc]&&hlines[br][bc]&&hlines[br+1][bc]&&vlines[br][bc]&&vlines[br][bc+1])gives++;
+      }
+      if(l.type==='h')hlines[l.r][l.c]=0;else vlines[l.r][l.c]=0;
+      return gives===0;
+    });
+    best=safe.length?safe[Math.floor(Math.random()*safe.length)]:lines[Math.floor(Math.random()*lines.length)];
+  }
+  if(best)clickLine(best);
+}
+
+function draw(){
+  ctx.fillStyle='#f5f0e8';ctx.fillRect(0,0,W,H);
+  // boxes
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(boxes[r][c]){
+      ctx.fillStyle=boxes[r][c]===1?'rgba(52,152,219,0.3)':'rgba(231,76,60,0.3)';
+      ctx.fillRect(dotX(c)+DOT,dotY(r)+DOT,STEP-DOT*2,STEP-DOT*2);
+      ctx.fillStyle=boxes[r][c]===1?'#3498db':'#e74c3c';ctx.font='bold 16px monospace';
+      ctx.textAlign='center';ctx.fillText(boxes[r][c]===1?'Y':'A',dotX(c)+STEP/2,dotY(r)+STEP/2+6);
+    }
+  }
+  // lines
+  for(let r=0;r<=N;r++)for(let c=0;c<N;c++){
+    const isHover=hover&&hover.type==='h'&&hover.r===r&&hover.c===c&&!hlines[r][c];
+    ctx.strokeStyle=hlines[r][c]?(hlines[r][c]===1?'#3498db':'#e74c3c'):isHover?'rgba(0,0,0,0.3)':'#ccc';
+    ctx.lineWidth=hlines[r][c]?4:isHover?3:2;
+    ctx.beginPath();ctx.moveTo(dotX(c),dotY(r));ctx.lineTo(dotX(c+1),dotY(r));ctx.stroke();
+  }
+  for(let r=0;r<N;r++)for(let c=0;c<=N;c++){
+    const isHover=hover&&hover.type==='v'&&hover.r===r&&hover.c===c&&!vlines[r][c];
+    ctx.strokeStyle=vlines[r][c]?(vlines[r][c]===1?'#3498db':'#e74c3c'):isHover?'rgba(0,0,0,0.3)':'#ccc';
+    ctx.lineWidth=vlines[r][c]?4:isHover?3:2;
+    ctx.beginPath();ctx.moveTo(dotX(c),dotY(r));ctx.lineTo(dotX(c),dotY(r+1));ctx.stroke();
+  }
+  // dots
+  for(let r=0;r<=N;r++)for(let c=0;c<=N;c++){
+    ctx.fillStyle='#333';ctx.beginPath();ctx.arc(dotX(c),dotY(r),DOT,0,Math.PI*2);ctx.fill();
+  }
+  ctx.textAlign='left';
+  if(state==='idle'){
+    ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#333';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('DOTS & BOXES',W/2,H/2-16);ctx.font='13px monospace';
+    ctx.fillText('Click lines · Complete boxes to score',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+canvas.addEventListener('mousemove',e=>{
+  if(state!=='playing')return;
+  const r=canvas.getBoundingClientRect();
+  hover=nearestLine(e.clientX-r.left,e.clientY-r.top);draw();
+});
+canvas.addEventListener('click',e=>{
+  if(state==='idle'){init();return;}
+  if(state!=='playing'||turn!==0)return;
+  const r=canvas.getBoundingClientRect();
+  clickLine(nearestLine(e.clientX-r.left,e.clientY-r.top));
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pac-Man Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #000; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="420" height="460"></canvas>
+<div id="ui">
+  <span id="msg">Arrow keys · Eat all dots · Avoid ghosts!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=420,H=460,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const T=20,COLS=21,ROWS=21;
+
+// 0=empty, 1=wall, 2=dot, 3=power
+const MAP_DEF=[
+'111111111111111111111',
+'100000000010000000001',
+'103110111010111011301',
+'100000000000000000001',
+'101101011111011011011', // adjusted - no ghost house
+'100000000010000000001',
+'111011101010101110111',
+'110000001010100000011',
+'111011100000001110111',
+'100000000000000000001',
+'101101011111011011011',
+'100000000010000000001',
+'103110111010111011301',
+'100000000000000000001',
+'101101011111011011011',
+'100000000010000000001',
+'111011101010101110111',
+'110000001010100000011',
+'111011100000001110111',
+'100000000000000000001',
+'111111111111111111111',
+];
+
+let map,pac,ghosts,score,lives,dots,power,powerTimer,raf,keys={},state='idle',dir,nextDir;
+
+function buildMap(){
+  map=MAP_DEF.map(row=>row.split('').map(Number));
+  dots=0;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(map[r][c]===2||map[r][c]===3)dots++;
+}
+
+function init(){
+  buildMap();
+  pac={r:10,c:10,x:10*T+T/2,y:10*T+T/2,mouth:0.2,mouthDir:1,animFrame:0};
+  dir={dr:0,dc:0};nextDir={dr:0,dc:0};
+  ghosts=[
+    {r:1,c:1,x:1*T+T/2,y:1*T+T/2,color:'#e74c3c',dr:0,dc:1,scared:false},
+    {r:1,c:19,x:19*T+T/2,y:1*T+T/2,color:'#3498db',dr:0,dc:-1,scared:false},
+    {r:19,c:1,x:1*T+T/2,y:19*T+T/2,color:'#f39c12',dr:1,dc:0,scared:false},
+    {r:19,c:19,x:19*T+T/2,y:19*T+T/2,color:'#2ecc71',dr:-1,dc:0,scared:false},
+  ];
+  score=0;lives=3;power=false;powerTimer=0;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function canMove(r,c){return r>=0&&r<ROWS&&c>=0&&c<COLS&&map[r][c]!==1;}
+
+function update(){
+  // pac movement
+  pac.animFrame++;
+  if(pac.animFrame%4===0){
+    const nr=pac.r+nextDir.dr,nc=pac.c+nextDir.dc;
+    if(canMove(nr,nc)){dir=nextDir;}
+    const mr=pac.r+dir.dr,mc=pac.c+dir.dc;
+    if(canMove(mr,mc)){pac.r=mr;pac.c=mc;pac.x=pac.c*T+T/2;pac.y=pac.r*T+T/2;}
+  }
+  pac.mouth+=0.08*pac.mouthDir;
+  if(pac.mouth>0.35||pac.mouth<0.05)pac.mouthDir*=-1;
+
+  // eat dots
+  const cell=map[pac.r][pac.c];
+  if(cell===2){map[pac.r][pac.c]=0;score+=10;dots--;}
+  if(cell===3){map[pac.r][pac.c]=0;score+=50;dots--;power=true;powerTimer=200;
+    ghosts.forEach(g=>g.scared=true);}
+  if(powerTimer>0){powerTimer--;if(powerTimer<=0){power=false;ghosts.forEach(g=>g.scared=false);}}
+
+  // ghosts
+  ghosts.forEach(g=>{
+    if(g.animFrame%5===0){
+      const opts=[[−1,0],[1,0],[0,−1],[0,1]].filter(([dr,dc])=>canMove(g.r+dr,g.c+dc)&&!(dr===-g.dr&&dc===-g.dc));
+      if(opts.length){
+        let [dr,dc];
+        if(g.scared||Math.random()<0.3){[dr,dc]=opts[Math.floor(Math.random()*opts.length)];}
+        else{// chase pac
+          opts.sort((a,b)=>Math.hypot(g.r+a[0]-pac.r,g.c+a[1]-pac.c)-Math.hypot(g.r+b[0]-pac.r,g.c+b[1]-pac.c));
+          [dr,dc]=opts[0];
+        }
+        g.dr=dr;g.dc=dc;g.r+=dr;g.c+=dc;g.x=g.c*T+T/2;g.y=g.r*T+T/2;
+      }
+    }
+    g.animFrame=(g.animFrame||0)+1;
+
+    // collision with pac
+    if(Math.abs(g.r-pac.r)<=0&&Math.abs(g.c-pac.c)<=0){
+      if(g.scared){g.r=10;g.c=10;g.scared=false;score+=200;}
+      else{lives--;if(lives<=0){endGame();return;}pac.r=10;pac.c=10;dir={dr:0,dc:0};}
+    }
+  });
+
+  if(dots<=0){score+=1000;buildMap();ghosts.forEach((g,i)=>{g.r=[1,1,19,19][i];g.c=[1,19,1,19][i];});}
+  msg.textContent=`Score: ${score}  Lives: ${'●'.repeat(lives)}`;
+}
+
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  // map
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const x=c*T,y=r*T+20;
+    if(map[r][c]===1){ctx.fillStyle='#00f';ctx.fillRect(x,y,T,T);ctx.strokeStyle='#44f';ctx.lineWidth=1;ctx.strokeRect(x+1,y+1,T-2,T-2);}
+    else if(map[r][c]===2){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x+T/2,y+T/2,2,0,Math.PI*2);ctx.fill();}
+    else if(map[r][c]===3){ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(x+T/2,y+T/2,5,0,Math.PI*2);ctx.fill();}
+  }
+  // pac
+  const px=pac.c*T+T/2,py=pac.r*T+T/2+20;
+  const angle=Math.atan2(dir.dr,dir.dc);
+  ctx.fillStyle='#ff0';ctx.beginPath();
+  ctx.moveTo(px,py);ctx.arc(px,py,T/2-1,angle+pac.mouth,angle+Math.PI*2-pac.mouth);ctx.closePath();ctx.fill();
+  // ghosts
+  ghosts.forEach(g=>{
+    const gx=g.c*T+T/2,gy=g.r*T+T/2+20;
+    ctx.fillStyle=g.scared?(powerTimer<60&&Math.floor(powerTimer/10)%2?'#fff':'#00f'):g.color;
+    ctx.beginPath();ctx.arc(gx,gy-3,T/2-1,Math.PI,0);
+    ctx.lineTo(gx+T/2-1,gy+T/2-1);
+    for(let i=3;i>=0;i--)ctx.lineTo(gx-T/2+1+(T-2)/3*i,gy+T/2-1-(i%2===0?4:0));
+    ctx.closePath();ctx.fill();
+    if(!g.scared){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(gx-3,gy-3,3,0,Math.PI*2);ctx.fill();ctx.arc(gx+3,gy-3,3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#00f';ctx.beginPath();ctx.arc(gx-3,gy-3,1.5,0,Math.PI*2);ctx.fill();ctx.arc(gx+3,gy-3,1.5,0,Math.PI*2);ctx.fill();}
+  });
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,20);
+  ctx.fillStyle='#ff0';ctx.font='13px monospace';ctx.fillText(`Score: ${score}  ${'●'.repeat(lives)}  Dots: ${dots}`,4,14);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ff0';ctx.font='bold 24px monospace';ctx.textAlign='center';
+    ctx.fillText('PAC-MAN LITE',W/2,H/2-16);ctx.font='13px monospace';ctx.fillStyle='#fff';
+    ctx.fillText('Eat all dots · Avoid ghosts',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 24px monospace';ctx.textAlign='center';
+  ctx.fillText('GAME OVER',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent='Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{
+  if(state==='idle'||state==='over'){init();return;}
+  if(e.code==='ArrowUp'){e.preventDefault();nextDir={dr:-1,dc:0};}
+  if(e.code==='ArrowDown'){e.preventDefault();nextDir={dr:1,dc:0};}
+  if(e.code==='ArrowLeft'){e.preventDefault();nextDir={dr:0,dc:-1};}
+  if(e.code==='ArrowRight'){e.preventDefault();nextDir={dr:0,dc:1};}
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

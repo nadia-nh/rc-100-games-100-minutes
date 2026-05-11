@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rhythm Tap</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; cursor: pointer; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="360"></canvas>
+<div id="ui">
+  <span id="msg">Press D F J K to hit notes as they reach the line!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=360,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const LANES=4,KEYS=['KeyD','KeyF','KeyJ','KeyK'],LABELS=['D','F','J','K'];
+const COLORS=['#e74c3c','#3498db','#2ecc71','#f1c40f'];
+const HIT_Y=H-60,LANE_W=W/LANES,NOTE_H=20,NOTE_SPEED=4;
+const BPM=120,BEAT=60000/BPM;
+
+let notes,score,combo,maxCombo,hits,misses,startTime,raf,state='idle',effects;
+
+// Generate a simple rhythm pattern
+function genNotes(){
+  const ns=[];
+  const pattern=[
+    [0,0],[1,1],[2,2],[3,3],[0,4],[2,4],[1,5],[3,5],
+    [0,6],[0,6.5],[1,7],[2,7.5],[3,8],[1,8],[0,9],[3,9],
+    [0,10],[1,10],[2,11],[3,11],[0,12],[2,12],[1,13],[3,13],
+    [0,14],[3,14.5],[1,15],[2,15.5],[0,16],[1,16],[2,17],[3,17],
+  ];
+  pattern.forEach(([lane,beat])=>ns.push({lane,y:-(beat*BEAT*NOTE_SPEED/1000+100),hit:false,missed:false}));
+  return ns;
+}
+
+function init(){
+  notes=genNotes();score=0;combo=0;maxCombo=0;hits=0;misses=0;effects=[];
+  startTime=Date.now();state='playing';btn.textContent='Restart';
+  cancelAnimationFrame(raf);loop();
+}
+
+// Web Audio for beeps
+const ac=new(window.AudioContext||window.webkitAudioContext)();
+function beep(freq,dur,vol=0.3){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.connect(g);g.connect(ac.destination);
+  o.frequency.value=freq;g.gain.value=vol;
+  o.start();g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+  o.stop(ac.currentTime+dur);
+}
+
+function pressLane(lane){
+  if(state!=='playing')return;
+  const window_=60;
+  // find closest note in lane near hit line
+  let best=null,bestD=Infinity;
+  for(const n of notes){
+    if(n.lane!==lane||n.hit||n.missed)continue;
+    const d=Math.abs(n.y-HIT_Y);
+    if(d<window_&&d<bestD){bestD=d;best=n;}
+  }
+  if(best){
+    best.hit=true;
+    const perf=bestD<15?'PERFECT':bestD<35?'GOOD':'OK';
+    const pts=perf==='PERFECT'?100:perf==='GOOD'?60:30;
+    score+=pts*(1+Math.floor(combo/10));combo++;maxCombo=Math.max(maxCombo,combo);hits++;
+    effects.push({x:lane*LANE_W+LANE_W/2,y:HIT_Y-20,text:perf,color:COLORS[lane],life:40});
+    beep([330,392,440,523][lane],0.1);
+  } else {
+    effects.push({x:lane*LANE_W+LANE_W/2,y:HIT_Y-20,text:'MISS',color:'#888',life:30});
+    combo=0;beep(150,0.05,0.1);
+  }
+}
+
+function update(){
+  const elapsed=(Date.now()-startTime)/1000;
+  notes.forEach(n=>{
+    n.y+=NOTE_SPEED;
+    if(!n.hit&&!n.missed&&n.y>HIT_Y+30){n.missed=true;misses++;combo=0;}
+  });
+  effects.forEach(e=>e.life--);
+  effects=effects.filter(e=>e.life>0);
+  const active=notes.filter(n=>!n.hit&&!n.missed);
+  if(!active.length&&notes.every(n=>n.hit||n.missed)){endGame();}
+  const acc=hits+misses>0?Math.round(hits/(hits+misses)*100):100;
+  msg.textContent=`Score: ${score}  Combo: ${combo}x  Acc: ${acc}%`;
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,W,H);
+  // lanes
+  for(let l=0;l<LANES;l++){
+    ctx.fillStyle=`rgba(${l===0?'231,76,60':l===1?'52,152,219':l===2?'46,204,113':'241,196,15'},0.05)`;
+    ctx.fillRect(l*LANE_W,0,LANE_W,H);
+    ctx.strokeStyle='#1a1a2a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(l*LANE_W,0);ctx.lineTo(l*LANE_W,H);ctx.stroke();
+    // key label
+    ctx.fillStyle=COLORS[l];ctx.font='bold 18px monospace';ctx.textAlign='center';
+    ctx.fillText(LABELS[l],l*LANE_W+LANE_W/2,H-20);
+  }
+  // hit line
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(0,HIT_Y);ctx.lineTo(W,HIT_Y);ctx.stroke();ctx.setLineDash([]);
+  // notes
+  notes.forEach(n=>{
+    if(n.hit||n.missed)return;
+    if(n.y<-NOTE_H||n.y>H)return;
+    ctx.fillStyle=COLORS[n.lane];ctx.fillRect(n.lane*LANE_W+4,n.y,LANE_W-8,NOTE_H);
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(n.lane*LANE_W+4,n.y,LANE_W-8,6);
+  });
+  // effects
+  effects.forEach(e=>{
+    ctx.fillStyle=e.color;ctx.globalAlpha=e.life/40;ctx.font='bold 16px monospace';ctx.textAlign='center';
+    ctx.fillText(e.text,e.x,e.y);ctx.globalAlpha=1;
+  });
+  // score overlay
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.textAlign='left';
+  ctx.fillText(`Score: ${score}  Combo: ${combo}x  Max: ${maxCombo}x`,4,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.78)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('RHYTHM TAP',W/2,H/2-20);ctx.font='13px monospace';
+    ctx.fillText('D F J K keys · Hit notes on the line!',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  const acc=hits+misses>0?Math.round(hits/(hits+misses)*100):100;
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffd700';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('COMPLETE!',W/2,H/2-30);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText(`Score: ${score}  Acc: ${acc}%  Max Combo: ${maxCombo}x`,W/2,H/2+4);ctx.textAlign='left';
+  msg.textContent=`Score: ${score} · Acc: ${acc}% · Max Combo: ${maxCombo}x`;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{
+  const li=KEYS.indexOf(e.code);
+  if(li>=0){e.preventDefault();pressLane(li);}
+  if(e.code==='Space'&&(state==='idle'||state==='over')){e.preventDefault();init();}
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

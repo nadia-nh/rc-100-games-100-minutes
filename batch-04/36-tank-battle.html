@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tank Battle</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1200; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #cc0; gap: 8px; }
+canvas { border: 2px solid #443300; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #332200; color: #cc0; border: 1px solid #664400; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #443300; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">WASD move · Space shoot · Bullets bounce!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',p,ai,bullets,walls,score,lives,raf,keys={};
+
+function mkWalls(){
+  const ws=[];
+  // border
+  ws.push({x:0,y:0,w:W,h:12},{x:0,y:H-12,w:W,h:12},{x:0,y:0,w:12,h:H},{x:W-12,y:0,w:12,h:H});
+  // interior walls
+  const wDefs=[[60,80,80,12],[200,60,12,100],[340,80,80,12],[60,240,80,12],[200,200,100,12],[340,240,80,12],[60,360,80,12],[200,340,12,100],[340,360,80,12]];
+  wDefs.forEach(([x,y,w,h])=>ws.push({x,y,w,h}));
+  return ws;
+}
+
+function init(){
+  p={x:60,y:150,angle:0,hp:3,cooldown:0,color:'#3a3'};
+  ai={x:360,y:300,angle:Math.PI,hp:3,cooldown:0,color:'#c33',aiTimer:0};
+  bullets=[];walls=mkWalls();score=0;lives=3;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function drawTank(t){
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.angle);
+  ctx.fillStyle=t.color;
+  ctx.fillRect(-16,-12,32,24);
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(-12,-8,24,16);
+  ctx.fillStyle=t.color;ctx.fillRect(0,-3,22,6);// barrel
+  ctx.fillStyle='#000';ctx.fillRect(-16,-12,6,8);ctx.fillRect(-16,4,6,8);ctx.fillRect(10,-12,6,8);ctx.fillRect(10,4,6,8);
+  ctx.restore();
+}
+
+function moveTank(t,da,fwd){
+  t.angle+=da;
+  const nx=t.x+Math.cos(t.angle)*fwd;
+  const ny=t.y+Math.sin(t.angle)*fwd;
+  // wall check
+  const TR=18;
+  let ok=true;
+  for(const w of walls){if(nx-TR<w.x+w.w&&nx+TR>w.x&&ny-TR<w.y+w.h&&ny+TR>w.y)ok=false;}
+  if(ok){t.x=Math.max(TR,Math.min(W-TR,nx));t.y=Math.max(TR,Math.min(H-TR,ny));}
+}
+
+function shoot(t){
+  if(t.cooldown>0)return;
+  bullets.push({x:t.x+Math.cos(t.angle)*22,y:t.y+Math.sin(t.angle)*22,
+    vx:Math.cos(t.angle)*9,vy:Math.sin(t.angle)*9,owner:t,bounces:2,r:5});
+  t.cooldown=25;
+}
+
+function update(){
+  if(keys['KeyW']||keys['ArrowUp'])moveTank(p,0,3);
+  if(keys['KeyS']||keys['ArrowDown'])moveTank(p,0,-3);
+  if(keys['KeyA']||keys['ArrowLeft'])moveTank(p,-0.07,0);
+  if(keys['KeyD']||keys['ArrowRight'])moveTank(p,0.07,0);
+  if(keys['Space'])shoot(p);
+  if(p.cooldown>0)p.cooldown--;if(ai.cooldown>0)ai.cooldown--;
+
+  // AI
+  ai.aiTimer++;
+  if(ai.aiTimer%60===0)shoot(ai);
+  const da=angleDiff(Math.atan2(p.y-ai.y,p.x-ai.x),ai.angle);
+  ai.angle+=Math.sign(da)*0.04;
+  if(Math.abs(da)<0.5)moveTank(ai,0,1.5);
+
+  // move bullets
+  for(const b of bullets){
+    b.x+=b.vx;b.y+=b.vy;
+    for(const w of walls){
+      if(b.x-b.r<w.x+w.w&&b.x+b.r>w.x&&b.y-b.r<w.y+w.h&&b.y+b.r>w.y){
+        if(b.bounces>0){
+          // determine which axis to bounce
+          const fromLeft=b.x-b.vx+b.r<=w.x||b.x-b.vx-b.r>=w.x+w.w;
+          if(fromLeft)b.vx=-b.vx;else b.vy=-b.vy;
+          b.bounces--;b.x+=b.vx;b.y+=b.vy;
+        } else b.bounces=-1;
+        break;
+      }
+    }
+  }
+  bullets=bullets.filter(b=>b.bounces>=0);
+
+  // hits
+  for(const b of bullets){
+    if(b.owner!==p&&Math.hypot(b.x-p.x,b.y-p.y)<b.r+16){p.hp--;b.bounces=-1;if(!p.hp){endGame(false);return;}}
+    if(b.owner!==ai&&Math.hypot(b.x-ai.x,b.y-ai.y)<b.r+16){ai.hp--;b.bounces=-1;score+=50;if(!ai.hp){endGame(true);return;}}
+  }
+  msg.textContent=`You HP:${'█'.repeat(p.hp)}  Score:${score}  Enemy HP:${'█'.repeat(ai.hp)}`;
+}
+
+function angleDiff(a,b){let d=a-b;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return d;}
+
+function draw(){
+  ctx.fillStyle='#2a2000';ctx.fillRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='#1a1000';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  // walls
+  ctx.fillStyle='#553300';walls.forEach(w=>ctx.fillRect(w.x,w.y,w.w,w.h));
+  ctx.strokeStyle='#886644';ctx.lineWidth=2;walls.forEach(w=>ctx.strokeRect(w.x,w.y,w.w,w.h));
+  drawTank(p);drawTank(ai);
+  // bullets
+  bullets.forEach(b=>{
+    ctx.fillStyle=b.owner===p?'#ff0':'#f44';
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+  });
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#cc0';ctx.font='bold 26px monospace';ctx.textAlign='center';
+    ctx.fillText('TANK BATTLE',W/2,H/2-20);ctx.font='13px monospace';
+    ctx.fillText('WASD move · Space shoot · Bullets bounce!',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function endGame(won){
+  state='over';cancelAnimationFrame(raf);draw();
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#0f0':'#f00';ctx.font='bold 24px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'VICTORY!':'DESTROYED!',W/2,H/2-20);
+  ctx.fillStyle='#fff';ctx.font='16px monospace';ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent=(won?'🏆':'💀')+' Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space')e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chain Reaction</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; cursor: crosshair; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="400"></canvas>
+<div id="ui">
+  <span id="msg">Click to create explosion · Chain them!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=400,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',balls,explosions,score,level,clicks,raf;
+
+function mkBalls(n){
+  const bs=[];
+  for(let i=0;i<n;i++){
+    const r=8+Math.random()*8;
+    bs.push({
+      x:r+Math.random()*(W-r*2),y:r+Math.random()*(H-r*2),
+      vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,
+      r,hue:Math.floor(Math.random()*360),alive:true
+    });
+  }
+  return bs;
+}
+
+function init(){
+  level=1;score=0;clicks=0;
+  balls=mkBalls(20);explosions=[];
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+  msg.textContent=`Level ${level} · Destroy 50%+ · Clicks left: 3`;
+}
+
+function explode(x,y,r,fromBall){
+  explosions.push({x,y,r:0,maxR:r,life:1,fromBall});
+}
+
+function update(){
+  if(state!=='playing')return;
+
+  balls.forEach(b=>{
+    if(!b.alive)return;
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.x-b.r<0){b.x=b.r;b.vx=Math.abs(b.vx);}
+    if(b.x+b.r>W){b.x=W-b.r;b.vx=-Math.abs(b.vx);}
+    if(b.y-b.r<0){b.y=b.r;b.vy=Math.abs(b.vy);}
+    if(b.y+b.r>H){b.y=H-b.r;b.vy=-Math.abs(b.vy);}
+  });
+
+  // expand explosions and check hits
+  explosions.forEach(ex=>{
+    ex.r=Math.min(ex.r+4,ex.maxR);
+    ex.life-=0.03;
+    balls.forEach(b=>{
+      if(!b.alive)return;
+      if(Math.hypot(b.x-ex.x,b.y-ex.y)<ex.r+b.r){
+        b.alive=false;score+=10;
+        explosions.push({x:b.x,y:b.y,r:0,maxR:b.r*3+20,life:1,fromBall:true});
+      }
+    });
+  });
+  explosions=explosions.filter(ex=>ex.life>0);
+
+  const alive=balls.filter(b=>b.alive).length;
+  const total=balls.length;
+  const pct=Math.round((total-alive)/total*100);
+
+  // level complete check
+  if(explosions.length===0&&alive<total){
+    if(pct>=50){
+      score+=alive===0?500:200;
+      level++;
+      const count=20+level*5;
+      balls=mkBalls(Math.min(count,60));
+      explosions=[];clicks=Math.max(1,4-Math.floor(level/3));
+      msg.textContent=`Level ${level}! Score: ${score} · Clicks: ${clicks}`;
+    } else if(clicks<=0){
+      endGame();return;
+    }
+    msg.textContent=`Level ${level} · Destroyed: ${pct}% (need 50%) · Clicks: ${clicks}`;
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+  // explosions
+  explosions.forEach(ex=>{
+    const g=ctx.createRadialGradient(ex.x,ex.y,0,ex.x,ex.y,ex.r);
+    g.addColorStop(0,`rgba(255,200,50,${ex.life*0.8})`);
+    g.addColorStop(0.5,`rgba(255,80,0,${ex.life*0.4})`);
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(ex.x,ex.y,ex.r,0,Math.PI*2);ctx.fill();
+  });
+  // balls
+  balls.forEach(b=>{
+    if(!b.alive)return;
+    ctx.fillStyle=`hsl(${b.hue},80%,55%)`;
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.3)';
+    ctx.beginPath();ctx.arc(b.x-b.r*0.3,b.y-b.r*0.3,b.r*0.3,0,Math.PI*2);ctx.fill();
+  });
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';
+  const alive=balls.filter(b=>b.alive).length;
+  ctx.fillText(`Lv ${level}  Score: ${score}  Balls: ${alive}/${balls.length}  Clicks: ${clicks}`,4,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('CHAIN REACTION',W/2,H/2-20);ctx.font='13px monospace';
+    ctx.fillText('Click to explode · chain 50%+ to advance',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('FIZZLE OUT',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText(`Level ${level}  Score: ${score}`,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent=`Reached level ${level} · Score: ${score}`;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+canvas.addEventListener('click',e=>{
+  if(state==='idle'||state==='over'){init();return;}
+  if(state==='playing'&&clicks>0&&explosions.length===0){
+    const r=canvas.getBoundingClientRect();
+    explode(e.clientX-r.left,e.clientY-r.top,40,false);
+    clicks--;
+  }
+});
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&(state==='idle'||state==='over')){e.preventDefault();init();}});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

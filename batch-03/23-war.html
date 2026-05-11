@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>War — Card Game</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #2c1654; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 16px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 30px; font-size: 1rem; color: #ccc; }
+.player-zone { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 20px; text-align: center; min-width: 140px; }
+.player-zone h3 { font-size: 0.8rem; color: #aaa; margin-bottom: 10px; }
+.card-face { background: #fff; color: #000; border-radius: 8px; width: 70px; height: 96px; margin: 0 auto;
+             display: flex; flex-direction: column; justify-content: space-between;
+             padding: 5px 7px; font-weight: 900; font-size: 1rem; }
+.card-face.red { color: #c0392b; }
+.card-back { background: #1a3a8c; border-radius: 8px; width: 70px; height: 96px; margin: 0 auto; }
+#battle { display: flex; gap: 40px; align-items: center; }
+#result-txt { font-size: 1.4rem; font-weight: 900; color: #f1c40f; min-width: 80px; text-align: center; }
+#war-pile { font-size: 0.85rem; color: #f39c12; min-height: 1.2em; }
+#status { font-size: 1rem; min-height: 1.4em; }
+button { background: #9b59b6; color: #fff; border: none; padding: 12px 32px;
+         border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; font-size: 1.1rem; }
+button:disabled { opacity: 0.5; cursor: default; }
+a { color: #666; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>⚔️ War</h1>
+<div id="info">
+  <span>You: <b id="p-count">26</b> cards</span>
+  <span>CPU: <b id="c-count">26</b> cards</span>
+  <span>Round: <b id="round">0</b></span>
+</div>
+<div id="battle">
+  <div class="player-zone"><h3>YOU</h3><div id="p-card"><div class="card-back"></div></div></div>
+  <div id="result-txt">—</div>
+  <div class="player-zone"><h3>CPU</h3><div id="c-card"><div class="card-back"></div></div></div>
+</div>
+<div id="war-pile"></div>
+<div id="status">Press Flip to battle!</div>
+<button id="flip-btn">Flip!</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const VALS=['2','3','4','5','6','7','8','9','10','J','Q','K','A'], SUITS=['♠','♥','♦','♣'], RED=new Set(['♥','♦']);
+function rank(c){return VALS.indexOf(c.v);}
+function makeDeck(){const d=[];for(const s of SUITS)for(const v of VALS)d.push({s,v});return d.sort(()=>Math.random()-0.5);}
+function cardHTML(c){const r=RED.has(c.s);return `<div class="card-face${r?' red':''}">${c.v}<br><small>${c.s}</small></div>`;}
+
+let pDeck,cDeck,warPile,round,busy;
+const pcEl=document.getElementById('p-count'),ccEl=document.getElementById('c-count'),rEl=document.getElementById('round');
+const pCardEl=document.getElementById('p-card'),cCardEl=document.getElementById('c-card');
+const resultEl=document.getElementById('result-txt'),warEl=document.getElementById('war-pile');
+const statusEl=document.getElementById('status'),flipBtn=document.getElementById('flip-btn');
+
+function newGame(){
+  const d=makeDeck(); pDeck=d.slice(0,26); cDeck=d.slice(26);
+  warPile=[]; round=0; busy=false;
+  pcEl.textContent=26; ccEl.textContent=26; rEl.textContent=0;
+  pCardEl.innerHTML='<div class="card-back"></div>';
+  cCardEl.innerHTML='<div class="card-back"></div>';
+  resultEl.textContent='—'; warEl.textContent='';
+  statusEl.textContent='Press Flip to battle!';
+  flipBtn.textContent='Flip!'; flipBtn.disabled=false;
+}
+
+flipBtn.addEventListener('click',()=>{
+  if(busy)return;
+  if(flipBtn.textContent==='New Game'){newGame();return;}
+  if(!pDeck.length||!cDeck.length){statusEl.textContent=pDeck.length?'🎉 You win the war!':'💀 CPU wins!';flipBtn.textContent='New Game';return;}
+  busy=true; round++;
+  const pc=pDeck.shift(), cc=cDeck.shift();
+  warPile.push(pc,cc);
+  pCardEl.innerHTML=cardHTML(pc); cCardEl.innerHTML=cardHTML(cc);
+  rEl.textContent=round;
+  const pr=rank(pc),cr=rank(cc);
+  if(pr>cr){
+    resultEl.textContent='⬆ WIN'; warPile.forEach(c=>pDeck.push(c)); warPile=[];
+    statusEl.textContent=`You win! +${warPile.length||2} cards`;
+    warEl.textContent='';
+  } else if(cr>pr){
+    resultEl.textContent='⬇ LOSE'; warPile.forEach(c=>cDeck.push(c)); warPile=[];
+    statusEl.textContent=`CPU wins the round.`;
+    warEl.textContent='';
+  } else {
+    resultEl.textContent='⚔️ WAR!';
+    // war: draw 3 face down each
+    for(let i=0;i<3;i++){if(pDeck.length)warPile.push(pDeck.shift());if(cDeck.length)warPile.push(cDeck.shift());}
+    statusEl.textContent='WAR! Cards at stake: '+(warPile.length);
+    warEl.textContent=`⚔️ ${warPile.length} cards in war pile`;
+  }
+  pcEl.textContent=pDeck.length; ccEl.textContent=cDeck.length;
+  if(!pDeck.length){statusEl.textContent='💀 Out of cards! CPU wins.';flipBtn.textContent='New Game';}
+  if(!cDeck.length){statusEl.textContent='🎉 CPU out of cards! You win!';flipBtn.textContent='New Game';}
+  busy=false;
+});
+newGame();
+</script>
+</body>
+</html>

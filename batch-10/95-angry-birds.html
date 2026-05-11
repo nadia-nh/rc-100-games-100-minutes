@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Angry Birds Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; cursor: crosshair; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">Drag the bird and release to launch. Hit the pig!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',shots=3,launched=false,dragging=false, bird, mouse={x:0,y:0},pig,blocks,raf;
+function init(){shots=3;state='playing';launched=false;dragging=false;
+  bird={x:110,y:360,r:12,vx:0,vy:0};
+  pig={x:390,y:330,r:16,alive:true};
+  blocks=[
+    {x:350,y:360,w:25,h:25,hit:false},{x:380,y:360,w:25,h:25,hit:false},{x:365,y:330,w:25,h:25,hit:false}
+  ];
+  msg.textContent='Drag the bird to launch. Hits: pig wins.';btn.textContent='Restart';cancelAnimationFrame(raf);loop();}
+function update(){if(state!=='playing')return;
+  if(launched){bird.vy += 0.22;bird.x += bird.vx;bird.y += bird.vy;
+    if(bird.y>H-10||bird.x>W+20||bird.x<-20){launchReset();}
+    blocks.forEach(b=>{if(!b.hit && bird.x> b.x && bird.x< b.x+b.w && bird.y> b.y && bird.y< b.y+b.h){b.hit=true;bird.vx*=0.7;bird.vy*=-0.5;}});
+    if(pig.alive && Math.hypot(bird.x-pig.x,bird.y-pig.y)<bird.r+pig.r){pig.alive=false;endGame(true);}}
+}
+function launchReset(){shots--;launched=false;bird.x=110;bird.y=360;bird.vx=0;bird.vy=0;
+  if(shots<=0){endGame(false);return;}msg.textContent=`Missed! ${shots} shot${shots!==1?'s':''} left.`;}
+function draw(){ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#5d4';ctx.fillRect(0,H-40,W,40);
+  ctx.fillStyle='#654';ctx.fillRect(80,360,40,80);
+  ctx.fillStyle='#432';ctx.fillRect(80,388,20,40);
+  blocks.forEach(b=>{ctx.fillStyle=b.hit?'#333':'#9c7';ctx.fillRect(b.x,b.y,b.w,b.h);ctx.strokeStyle='#000';ctx.strokeRect(b.x,b.y,b.w,b.h);});
+  if(pig.alive){ctx.fillStyle='#f55';ctx.beginPath();ctx.arc(pig.x,pig.y,pig.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#000';ctx.fillRect(pig.x-8,pig.y-4,4,4);ctx.fillRect(pig.x+4,pig.y-4,4,4);}
+  ctx.fillStyle='#d22';ctx.beginPath();ctx.arc(bird.x,bird.y,bird.r,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';ctx.font='12px serif';ctx.textAlign='center';ctx.fillText('🐦',bird.x,bird.y+4);
+  if(!launched && dragging){ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(110,360);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();}
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.textAlign='left';ctx.fillText(`Shots: ${shots}  ${state==='playing'?'Drag to launch':''}`,4,15);
+  if(state==='idle'){ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffd700';ctx.font='bold 22px monospace';ctx.textAlign='center';ctx.fillText('ANGRY BIRDS LITE',W/2,H/2-20);
+    ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.fillText('Drag and release to fling the bird',W/2,H/2+10);
+  }}
+function endGame(won){state='over';cancelAnimationFrame(raf);ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#0f0':'#f44';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'PIG HIT! 🎯':'OUT OF SHOTS',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.fillText(won?`Shots left: ${shots}`:`Pig survived.`,W/2,H/2+14);
+  msg.textContent=won?'Victory!':'Try again!';}
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+let mouseDownFallback=false;
+canvas.addEventListener('mousedown',e=>{if(state!=='playing'||launched) return; dragging=true; const r=canvas.getBoundingClientRect(); mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top;});
+canvas.addEventListener('mousemove',e=>{if(!dragging) return; const r=canvas.getBoundingClientRect(); mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top;});
+canvas.addEventListener('mouseup',e=>{if(state!=='playing'||!dragging) return; dragging=false; launched=true; const r=canvas.getBoundingClientRect(); const mx=e.clientX-r.left, my=e.clientY-r.top;
+  bird.vx = (110-mx)*0.12; bird.vy = (360-my)*0.12; msg.textContent='Flying...';});
+canvas.addEventListener('mouseleave',()=>{if(dragging){dragging=false;}});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

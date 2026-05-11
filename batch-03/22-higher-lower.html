@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Higher or Lower</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a3e; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 20px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 24px; font-size: 1rem; color: #aaa; }
+.card-display { background: #fff; color: #000; border-radius: 12px; width: 100px; height: 140px;
+               display: flex; flex-direction: column; justify-content: space-between;
+               padding: 8px 10px; font-weight: 900; font-size: 1.4rem; box-shadow: 4px 4px 16px rgba(0,0,0,0.5); }
+.card-display.red { color: #c0392b; }
+.card-display span { font-size: 2.2rem; text-align: center; }
+.card-display .bot { transform: rotate(180deg); }
+#cards { display: flex; gap: 30px; align-items: center; }
+#vs { font-size: 2rem; font-weight: 900; color: #f1c40f; }
+#buttons { display: flex; gap: 20px; }
+.ans { padding: 14px 36px; border: none; border-radius: 8px; font: inherit; font-size: 1.2rem;
+       font-weight: 900; cursor: pointer; }
+#higher { background: #27ae60; color: #fff; }
+#lower  { background: #e74c3c; color: #fff; }
+.ans:disabled { opacity: 0.5; cursor: default; }
+#status { font-size: 1.1rem; min-height: 1.5em; font-weight: 700; }
+button#restart { background: #555; color: #eee; border: none; padding: 10px 24px;
+                 border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; display: none; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>📈 Higher or Lower</h1>
+<div id="info"><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
+<div id="cards">
+  <div id="current-card" class="card-display"></div>
+  <div id="vs">vs</div>
+  <div id="next-card" class="card-display" style="filter:blur(8px)">?</div>
+</div>
+<div id="buttons">
+  <button class="ans" id="higher">⬆ Higher</button>
+  <button class="ans" id="lower">⬇ Lower</button>
+</div>
+<div id="status">Will the next card be higher or lower?</div>
+<button id="restart">Play Again</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const VALS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const SUITS = ['♠','♥','♦','♣'];
+const RED = new Set(['♥','♦']);
+function rankOf(v) { return VALS.indexOf(v); }
+function makeDeck() { const d=[]; for(const s of SUITS) for(const v of VALS) d.push({s,v}); return d.sort(()=>Math.random()-0.5); }
+function renderCard(el, card, hide=false) {
+  el.className = 'card-display' + (RED.has(card.s)?' red':'');
+  if (hide) { el.innerHTML = '<span>🂠</span>'; el.style.filter='blur(8px)'; return; }
+  el.style.filter = '';
+  el.innerHTML = `<div>${card.v}<br><small>${card.s}</small></div><span>${card.s}</span><div class="bot">${card.v}<br><small>${card.s}</small></div>`;
+}
+let deck, current, next, score=0, best=0, active=true;
+const scoreEl=document.getElementById('score'), bestEl=document.getElementById('best');
+const curEl=document.getElementById('current-card'), nxtEl=document.getElementById('next-card');
+const statusEl=document.getElementById('status');
+const higherBtn=document.getElementById('higher'), lowerBtn=document.getElementById('lower');
+const restartBtn=document.getElementById('restart');
+
+function newGame() {
+  deck=makeDeck(); score=0; scoreEl.textContent=0; active=true;
+  restartBtn.style.display='none'; higherBtn.disabled=lowerBtn.disabled=false;
+  current=deck.pop(); next=deck.pop();
+  renderCard(curEl, current); renderCard(nxtEl, next, true);
+  statusEl.textContent='Will the next card be higher or lower?';
+}
+
+function guess(isHigher) {
+  if (!active) return;
+  renderCard(nxtEl, next);
+  const cr=rankOf(current.v), nr=rankOf(next.v);
+  const correct = isHigher ? nr>=cr : nr<=cr;
+  if (correct) {
+    score++; scoreEl.textContent=score; if(score>best){best=score;bestEl.textContent=best;}
+    statusEl.textContent=`✅ Correct! (${current.v} → ${next.v})`;
+    setTimeout(()=>{current=next; next=deck.pop(); if(!next){statusEl.textContent='🎉 Whole deck done! Score: '+score;active=false;restartBtn.style.display='';return;} renderCard(curEl,current); renderCard(nxtEl,next,true); statusEl.textContent='Higher or lower?';},900);
+  } else {
+    active=false; higherBtn.disabled=lowerBtn.disabled=true;
+    statusEl.textContent=`❌ Wrong! ${current.v} → ${next.v}. Score: ${score}`;
+    restartBtn.style.display='';
+  }
+}
+
+higherBtn.addEventListener('click', ()=>guess(true));
+lowerBtn.addEventListener('click', ()=>guess(false));
+restartBtn.addEventListener('click', newGame);
+newGame();
+</script>
+</body>
+</html>

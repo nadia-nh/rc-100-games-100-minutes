@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>True or False</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a1a; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 20px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#progress { color: #888; font-size: 0.9rem; }
+#question { font-size: 1.2rem; text-align: center; max-width: 480px; line-height: 1.5;
+            background: #1a1a2e; padding: 24px; border-radius: 12px; min-height: 80px;
+            display: flex; align-items: center; justify-content: center; }
+#buttons { display: flex; gap: 20px; }
+.ans { padding: 14px 40px; border: none; border-radius: 8px; font: inherit; font-size: 1.2rem;
+       font-weight: 900; cursor: pointer; transition: transform 0.1s; }
+.ans:active { transform: scale(0.95); }
+#true-btn  { background: #27ae60; color: #fff; }
+#false-btn { background: #c0392b; color: #fff; }
+.ans:disabled { opacity: 0.5; cursor: default; }
+#feedback { font-size: 1.1rem; min-height: 1.5em; font-weight: 700; }
+#score { font-size: 1rem; color: #f39c12; }
+button.next { background: #2980b9; color: #fff; border: none; padding: 10px 24px;
+              border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; display: none; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>❓ True or False</h1>
+<div id="progress">Question 1 / 10</div>
+<div id="question">Loading…</div>
+<div id="buttons">
+  <button class="ans" id="true-btn">✅ True</button>
+  <button class="ans" id="false-btn">❌ False</button>
+</div>
+<div id="feedback"></div>
+<div id="score">Score: 0</div>
+<button class="next" id="next-btn">Next →</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const QS = [
+  { q:'The Great Wall of China is visible from space with the naked eye.', a:false },
+  { q:'Humans share about 60% of their DNA with bananas.', a:true },
+  { q:'A day on Venus is shorter than a year on Venus.', a:false },
+  { q:'Honey never spoils — edible honey was found in Egyptian tombs.', a:true },
+  { q:'Lightning never strikes the same place twice.', a:false },
+  { q:'Octopuses have three hearts.', a:true },
+  { q:'The Eiffel Tower was originally planned to be built in Barcelona.', a:true },
+  { q:'Water boils at 100°C at sea level.', a:true },
+  { q:'Goldfish have a memory span of only 3 seconds.', a:false },
+  { q:'The shortest war in history lasted 38 minutes.', a:true },
+  { q:'Napoleon Bonaparte was unusually short for his time.', a:false },
+  { q:'A group of flamingos is called a flamboyance.', a:true },
+  { q:'The Amazon River flows into the Pacific Ocean.', a:false },
+  { q:'Cleopatra lived closer in time to the Moon landing than to the pyramids.', a:true },
+  { q:'Humans have more bones as adults than as babies.', a:false },
+];
+const shuffled = [...QS].sort(() => Math.random() - 0.5).slice(0, 10);
+let idx = 0, score = 0;
+
+const qEl = document.getElementById('question');
+const progEl = document.getElementById('progress');
+const feedEl = document.getElementById('feedback');
+const scoreEl = document.getElementById('score');
+const trueBtn = document.getElementById('true-btn');
+const falseBtn = document.getElementById('false-btn');
+const nextBtn = document.getElementById('next-btn');
+
+function show() {
+  if (idx >= shuffled.length) { endGame(); return; }
+  const q = shuffled[idx];
+  qEl.textContent = q.q;
+  progEl.textContent = `Question ${idx + 1} / ${shuffled.length}`;
+  feedEl.textContent = '';
+  trueBtn.disabled = falseBtn.disabled = false;
+  nextBtn.style.display = 'none';
+}
+
+function answer(val) {
+  const correct = shuffled[idx].a === val;
+  if (correct) { score++; feedEl.textContent = '✅ Correct!'; feedEl.style.color = '#27ae60'; }
+  else { feedEl.textContent = `❌ Wrong! It was ${shuffled[idx].a ? 'TRUE' : 'FALSE'}.`; feedEl.style.color = '#e74c3c'; }
+  scoreEl.textContent = `Score: ${score}`;
+  trueBtn.disabled = falseBtn.disabled = true;
+  nextBtn.style.display = '';
+  idx++;
+}
+
+function endGame() {
+  qEl.textContent = `Game over! You scored ${score} / ${shuffled.length}. ${score >= 8 ? '🏆 Excellent!' : score >= 5 ? '👍 Good!' : '😅 Try again!'}`;
+  feedEl.textContent = '';
+  nextBtn.textContent = 'Play Again';
+  nextBtn.style.display = '';
+  trueBtn.style.display = falseBtn.style.display = 'none';
+}
+
+trueBtn.addEventListener('click', () => answer(true));
+falseBtn.addEventListener('click', () => answer(false));
+nextBtn.addEventListener('click', () => {
+  if (idx >= shuffled.length) { idx = 0; score = 0; shuffled.sort(() => Math.random() - 0.5); nextBtn.textContent = 'Next →'; trueBtn.style.display = falseBtn.style.display = ''; }
+  show();
+});
+show();
+</script>
+</body>
+</html>

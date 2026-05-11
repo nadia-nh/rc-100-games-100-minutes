@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Missile Command</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #000; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #0f0; gap: 8px; }
+canvas { border: 1px solid #0f0; cursor: crosshair; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #020; color: #0f0; border: 1px solid #0a0; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #040; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="400"></canvas>
+<div id="ui">
+  <span id="msg">Click to intercept incoming missiles!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=400,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',missiles,interceptors,explosions,cities,score,wave,raf,spawnTimer=0;
+
+const CITY_XS=[40,100,160,280,340,400];
+
+function init(){
+  cities=CITY_XS.map(x=>({x,alive:true}));
+  missiles=[];interceptors=[];explosions=[];
+  score=0;wave=1;spawnTimer=0;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function spawnMissile(){
+  const targetCity=cities.filter(c=>c.alive);
+  if(!targetCity.length)return;
+  const tc=targetCity[Math.floor(Math.random()*targetCity.length)];
+  const sx=Math.random()*W;
+  const speed=0.8+wave*0.15;
+  const dx=tc.x-sx,dy=H-20-0;
+  const d=Math.hypot(dx,dy);
+  missiles.push({x:sx,y:0,vx:dx/d*speed,vy:dy/d*speed,tx:tc.x,ty:H-20,trail:[]});
+}
+
+canvas.addEventListener('click',e=>{
+  if(state!=='playing')return;
+  const r=canvas.getBoundingClientRect();
+  const tx=e.clientX-r.left,ty=e.clientY-r.top;
+  // fire from nearest battery (bottom center)
+  const bx=W/2;const by=H-10;
+  const dx=tx-bx,dy=ty-by,d=Math.hypot(dx,dy);
+  interceptors.push({x:bx,y:by,vx:dx/d*10,vy:dy/d*10,tx,ty,r:0});
+});
+
+function update(){
+  spawnTimer++;
+  const spawnRate=Math.max(40,120-wave*10);
+  if(spawnTimer>=spawnRate){spawnTimer=0;spawnMissile();if(wave>3)spawnMissile();}
+
+  // missiles
+  missiles.forEach(m=>{
+    m.trail.push({x:m.x,y:m.y});if(m.trail.length>20)m.trail.shift();
+    m.x+=m.vx;m.y+=m.vy;
+    if(m.y>=H-20){
+      // hit a city
+      cities.forEach(c=>{if(Math.abs(c.x-m.x)<30)c.alive=false;});
+      explosions.push({x:m.x,y:H-20,r:0,maxR:50,alive:true});
+      m.y=9999;
+    }
+  });
+  missiles=missiles.filter(m=>m.y<H);
+
+  // interceptors
+  interceptors.forEach(i=>{
+    i.x+=i.vx;i.y+=i.vy;i.r+=3;
+    if(i.r>=40||Math.hypot(i.x-i.tx,i.y-i.ty)<12){
+      explosions.push({x:i.x,y:i.y,r:0,maxR:60,alive:true});
+      i.r=-1;
+    }
+  });
+  interceptors=interceptors.filter(i=>i.r>=0);
+
+  // explosions
+  explosions.forEach(e=>{e.r+=3;if(e.r>=e.maxR)e.alive=false;});
+  // check missiles in explosions
+  for(const ex of explosions){
+    for(const m of missiles){
+      if(Math.hypot(m.x-ex.x,m.y-ex.y)<ex.r){
+        m.y=9999;score+=10;
+      }
+    }
+  }
+  explosions=explosions.filter(e=>e.alive);
+  missiles=missiles.filter(m=>m.y<H);
+
+  if(!cities.some(c=>c.alive)){endGame();return;}
+  if(!missiles.length&&spawnTimer===0){wave++;score+=cities.filter(c=>c.alive).length*50;}
+  msg.textContent=`Score:${score}  Wave:${wave}  Cities:${'🏠'.repeat(cities.filter(c=>c.alive).length)}`;
+}
+
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  // stars
+  ctx.fillStyle='rgba(255,255,255,0.6)';for(let i=0;i<80;i++)ctx.fillRect((i*137)%W,(i*71)%300,1,1);
+  // ground
+  ctx.fillStyle='#030';ctx.fillRect(0,H-20,W,20);
+  // cities
+  cities.forEach(c=>{
+    if(!c.alive)return;
+    ctx.fillStyle='#0a0';
+    ctx.fillRect(c.x-14,H-36,28,16);
+    ctx.fillRect(c.x-10,H-46,8,10);ctx.fillRect(c.x+2,H-46,8,10);
+  });
+  // battery
+  ctx.fillStyle='#0f0';ctx.fillRect(W/2-20,H-18,40,8);ctx.fillRect(W/2-4,H-26,8,10);
+  // missile trails
+  missiles.forEach(m=>{
+    ctx.strokeStyle='rgba(255,100,0,0.5)';ctx.lineWidth=2;ctx.beginPath();
+    m.trail.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+    ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(m.x,m.y,4,0,Math.PI*2);ctx.fill();
+  });
+  // interceptors
+  ctx.fillStyle='#ff0';interceptors.forEach(i=>{ctx.beginPath();ctx.arc(i.x,i.y,3,0,Math.PI*2);ctx.fill();});
+  // explosions
+  explosions.forEach(e=>{
+    const g=ctx.createRadialGradient(e.x,e.y,0,e.x,e.y,e.r);
+    g.addColorStop(0,'rgba(255,255,100,0.8)');g.addColorStop(0.5,'rgba(255,100,0,0.4)');g.addColorStop(1,'rgba(255,0,0,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+  });
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#0f0';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('MISSILE COMMAND',W/2,H/2-20);ctx.font='13px monospace';ctx.fillText('Click to intercept missiles!',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#f00';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('ALL CITIES DESTROYED',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='16px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent='💀 Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

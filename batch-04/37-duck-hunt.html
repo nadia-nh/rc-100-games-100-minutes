@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Duck Hunt</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #87ceeb; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 8px; }
+canvas { border: 2px solid #5a8a2a; cursor: crosshair; }
+#ui { display: flex; gap: 16px; align-items: center; font-size: 0.9rem; }
+button { background: #5a8a2a; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #556; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="400"></canvas>
+<div id="ui">
+  <span id="msg">Click the ducks!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=400,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',ducks,score,shots,round,timeLeft,timer,raf;
+
+function newDuck(){
+  const dir=Math.random()>0.5?1:-1;
+  return{x:dir>0?-40:W+40,y:60+Math.random()*(H-160),vx:dir*(2+Math.random()*3),vy:(Math.random()-0.5)*2,w:44,h:36,flap:0,alive:true,hit:false,hitTimer:0};
+}
+
+function init(){
+  ducks=[];score=0;shots=3;round=1;timeLeft=30;
+  for(let i=0;i<3;i++)ducks.push(newDuck());
+  state='playing';btn.textContent='Restart';
+  clearInterval(timer);
+  timer=setInterval(()=>{timeLeft--;msg.textContent=`Score:${score} Shots:${'🔴'.repeat(shots)} Round:${round} Time:${timeLeft}s`;if(timeLeft<=0){clearInterval(timer);endGame();}},1000);
+  msg.textContent=`Score:0 Shots:🔴🔴🔴 Round:1 Time:30s`;
+  cancelAnimationFrame(raf);loop();
+}
+
+canvas.addEventListener('click',e=>{
+  if(state!=='playing')return;
+  if(shots<=0)return;
+  const r=canvas.getBoundingClientRect();
+  const cx=e.clientX-r.left,cy=e.clientY-r.top;
+  shots--;let hit=false;
+  for(const d of ducks){
+    if(!d.alive||d.hit)continue;
+    if(cx>d.x-d.w/2&&cx<d.x+d.w/2&&cy>d.y-d.h/2&&cy<d.y+d.h/2){
+      d.hit=true;d.hitTimer=40;d.vy=-4;hit=true;
+      score+=10*round;break;
+    }
+  }
+  if(shots<=0&&!hit){setTimeout(()=>{shots=3;ducks=ducks.filter(d=>d.alive);if(!ducks.length){round++;for(let i=0;i<Math.min(3+round,8);i++)ducks.push(newDuck());}},500);}
+  msg.textContent=`Score:${score} Shots:${'🔴'.repeat(shots)} Round:${round} Time:${timeLeft}s`;
+});
+
+function update(){
+  ducks.forEach(d=>{
+    if(!d.alive)return;
+    d.flap=(d.flap+0.2)%1;
+    if(d.hit){d.hitTimer--;d.vy+=0.4;d.y+=d.vy;if(d.hitTimer<=0){d.alive=false;shots=Math.min(3,shots+(shots<3?1:0));ducks.push(newDuck());if(shots<=0)shots=3;}}
+    else{d.x+=d.vx;d.y+=d.vy;if(d.x>W+60)d.x=-40;if(d.x<-60)d.x=W+40;if(d.y<40||d.y>H-100)d.vy*=-1;}
+  });
+}
+
+function draw(){
+  // Sky
+  ctx.fillStyle='#87ceeb';ctx.fillRect(0,0,W,H);
+  // Clouds
+  ctx.fillStyle='#fff';
+  [[80,60,60],[220,40,80],[380,70,50]].forEach(([x,y,r])=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(x+r*0.6,y+5,r*0.7,0,Math.PI*2);ctx.fill();});
+  // Ground
+  ctx.fillStyle='#5a8a2a';ctx.fillRect(0,H-60,W,60);
+  ctx.fillStyle='#4a7a1a';ctx.fillRect(0,H-60,W,10);
+  // Bushes
+  [[50,H-65],[200,H-70],[350,H-65]].forEach(([x,y])=>{ctx.fillStyle='#3a6a0a';ctx.beginPath();ctx.arc(x,y,20,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(x+18,y+5,16,0,Math.PI*2);ctx.fill();});
+  // Ducks
+  ducks.forEach(d=>{
+    if(!d.alive)return;
+    ctx.save();ctx.translate(d.x,d.y);if(d.vx<0)ctx.scale(-1,1);
+    if(d.hit)ctx.fillStyle='#888';else ctx.fillStyle='#2a8a2a';
+    ctx.fillRect(-d.w/2,-d.h/2,d.w,d.h);
+    ctx.fillStyle=d.hit?'#666':'#4aaa4a';
+    ctx.fillRect(-d.w/2,-d.h/2,d.w,d.h/2);
+    // Wing flap
+    const flapY=d.flap>0.5?-4:4;
+    ctx.fillStyle='#1a6a1a';ctx.fillRect(-d.w/2-8,flapY,16,10);
+    ctx.fillStyle='#f80';ctx.fillRect(d.w/2-4,-4,12,8);// beak
+    ctx.fillStyle='#000';ctx.fillRect(d.w/2-8,-8,6,6);// eye
+    ctx.restore();
+  });
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 28px monospace';ctx.textAlign='center';
+    ctx.fillText('🦆 DUCK HUNT',W/2,H/2-20);ctx.font='14px monospace';ctx.fillText('Click the ducks!',W/2,H/2+16);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.font='bold 26px monospace';ctx.textAlign='center';
+  ctx.fillText("TIME'S UP!",W/2,H/2-20);ctx.font='16px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent='🏁 Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

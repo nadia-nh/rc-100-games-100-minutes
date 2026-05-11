@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sokoban Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="400" height="400"></canvas>
+<div id="ui">
+  <span id="msg">Arrow keys to move · Push boxes to goals!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=400,H=400,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const T=40;// tile size
+// W=wall, .=floor, @=player, $=box, *=box-on-goal, +=player-on-goal, X=goal
+const LEVELS=[
+`#######
+#.....#
+#.@$X.#
+#.....#
+#######`,
+`########
+#....X.#
+#.####.#
+#.$...X#
+#.#.@..#
+#......#
+########`,
+`#########
+#...#...#
+#.$.X.$.#
+#...#...#
+##.@X.###
+#...#...#
+#.$.X.$.#
+#...#...#
+#########`,
+`######
+#....#
+#.$$X#
+#.@XX#
+#....#
+######`
+];
+
+let state='idle',grid,player,moves,level,raf;
+
+function parseLevel(str){
+  const rows=str.trim().split('\n');
+  const g=[];let px=0,py=0;
+  rows.forEach((row,r)=>{
+    const line=[];
+    row.split('').forEach((ch,c)=>{
+      if(ch==='@'){px=c;py=r;line.push('.');}
+      else if(ch==='+'){px=c;py=r;line.push('X');}
+      else line.push(ch==='*'?'X':ch);
+    });
+    g.push(line);
+  });
+  return{grid:g,px,py};
+}
+
+function getBoxes(g){
+  const bs=[];
+  g.forEach((row,r)=>row.forEach((ch,c)=>{if(ch==='$'||ch==='*')bs.push({x:c,y:r});}));
+  return bs;
+}
+
+function loadLevel(n){
+  const lv=parseLevel(LEVELS[n%LEVELS.length]);
+  grid=lv.grid.map(r=>[...r]);
+  player={x:lv.px,y:lv.py};
+  moves=0;
+}
+
+function init(){
+  level=0;loadLevel(0);
+  state='playing';btn.textContent='Restart';loop();
+  msg.textContent='Level 1 · Push boxes to goals · R=restart level';
+}
+
+function move(dx,dy){
+  if(state!=='playing')return;
+  const nx=player.x+dx,ny=player.y+dy;
+  if(grid[ny]&&grid[ny][nx]){
+    const cell=grid[ny][nx];
+    if(cell==='#')return;
+    if(cell==='$'){
+      const bx=nx+dx,by=ny+dy;
+      if(!grid[by]||!grid[by][bx]||grid[by][bx]==='#'||grid[by][bx]==='$')return;
+      grid[by][bx]=grid[by][bx]==='X'?'*':'$';
+      grid[ny][nx]=grid[ny][nx]==='*'?'X':'.';
+    }
+    player.x=nx;player.y=ny;moves++;
+    // check win
+    const hasUnplaced=grid.some(row=>row.includes('$'));
+    if(!hasUnplaced){
+      level++;loadLevel(level);
+      msg.textContent=`Level ${level%LEVELS.length+1}! Moves: ${moves}`;
+    } else {
+      msg.textContent=`Level ${level%LEVELS.length+1} · Moves: ${moves}`;
+    }
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,W,H);
+  if(!grid)return;
+  const offX=(W-grid[0].length*T)/2,offY=(H-grid.length*T)/2;
+  grid.forEach((row,r)=>row.forEach((ch,c)=>{
+    const x=offX+c*T,y=offY+r*T;
+    if(ch==='#'){ctx.fillStyle='#555';ctx.fillRect(x,y,T,T);ctx.fillStyle='#666';ctx.fillRect(x,y,T,4);ctx.fillRect(x,y,4,T);}
+    else{ctx.fillStyle='#2a2a2a';ctx.fillRect(x,y,T,T);}
+    if(ch==='X'||ch==='*'){ctx.fillStyle='rgba(255,215,0,0.3)';ctx.fillRect(x+4,y+4,T-8,T-8);ctx.strokeStyle='#ffd700';ctx.lineWidth=2;ctx.strokeRect(x+4,y+4,T-8,T-8);}
+    if(ch==='$'||ch==='*'){ctx.fillStyle=ch==='*'?'#2ecc71':'#f39c12';ctx.fillRect(x+5,y+5,T-10,T-10);ctx.fillStyle='rgba(255,255,255,0.2)';ctx.fillRect(x+5,y+5,T-10,5);}
+  }));
+  // player
+  const px=offX+player.x*T+T/2,py=offY+player.y*T+T/2;
+  ctx.fillStyle='#3af';ctx.beginPath();ctx.arc(px,py,T/2-4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px-5,py-3,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(px+5,py-3,4,0,Math.PI*2);ctx.fill();
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('SOKOBAN',W/2,H/2-16);ctx.font='13px monospace';
+    ctx.fillText('Push all boxes onto gold goals',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function loop(){draw();}
+document.addEventListener('keydown',e=>{
+  if(state==='idle'||state==='over'){init();return;}
+  if(e.code==='ArrowUp'){e.preventDefault();move(0,-1);}
+  if(e.code==='ArrowDown'){e.preventDefault();move(0,1);}
+  if(e.code==='ArrowLeft'){e.preventDefault();move(-1,0);}
+  if(e.code==='ArrowRight'){e.preventDefault();move(1,0);}
+  if(e.code==='KeyR'){loadLevel(level);msg.textContent='Restarted level '+(level%LEVELS.length+1);}
+  draw();
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

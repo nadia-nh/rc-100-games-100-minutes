@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sudoku Lite (4×4)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #1a1a2e; gap: 16px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 3px solid #1a1a2e; width: 200px; }
+.cell { width: 50px; height: 50px; border: 1px solid #bbb; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 900; position: relative; }
+.cell.border-right { border-right: 3px solid #1a1a2e; }
+.cell.border-bottom { border-bottom: 3px solid #1a1a2e; }
+.cell input { width: 100%; height: 100%; border: none; background: transparent; text-align: center;
+              font-size: 1.8rem; font-weight: 900; outline: none; font-family: inherit; color: #2980b9; cursor: pointer; }
+.cell.given { background: #e8e0d0; }
+.cell.given input { color: #1a1a2e; pointer-events: none; }
+.cell.error input { color: #e74c3c; }
+.cell:focus-within { background: #cce5ff; }
+#status { font-size: 1rem; font-weight: 700; min-height: 1.4em; }
+#controls { display: flex; gap: 10px; }
+button { background: #e07b54; color: #fff; border: none; padding: 10px 20px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+#difficulty { font-size: 0.9rem; color: #888; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>🔢 Sudoku 4×4</h1>
+<div id="difficulty"></div>
+<div id="grid"></div>
+<div id="status">Fill the grid (1–4, no repeats in row/col/box)</div>
+<div id="controls">
+  <button id="check-btn">Check</button>
+  <button id="solve-btn">Solve</button>
+  <button id="new-btn">New Puzzle</button>
+</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+// Valid 4x4 Sudoku solutions and puzzles
+const PUZZLES = [
+  { sol:[[1,2,3,4],[3,4,1,2],[2,1,4,3],[4,3,2,1]], given:[[0,1],[0,3],[1,2],[2,0],[2,3],[3,1]], name:'Easy' },
+  { sol:[[2,1,4,3],[4,3,2,1],[1,2,3,4],[3,4,1,2]], given:[[0,0],[0,2],[1,1],[2,2],[2,3],[3,0],[3,3]], name:'Easy' },
+  { sol:[[3,4,1,2],[1,2,3,4],[4,3,2,1],[2,1,4,3]], given:[[0,1],[0,3],[1,0],[2,2],[3,1],[3,3]], name:'Medium' },
+  { sol:[[4,1,2,3],[2,3,4,1],[1,4,3,2],[3,2,1,4]], given:[[0,0],[0,2],[1,3],[2,1],[3,0],[3,2]], name:'Hard' },
+  { sol:[[1,3,2,4],[4,2,1,3],[2,4,3,1],[3,1,4,2]], given:[[0,1],[0,3],[1,0],[2,2],[3,1],[3,3]], name:'Medium' },
+];
+let puzzle, inputs;
+const gridEl = document.getElementById('grid');
+const statusEl = document.getElementById('status');
+const diffEl = document.getElementById('difficulty');
+
+function loadPuzzle() {
+  puzzle = PUZZLES[Math.floor(Math.random() * PUZZLES.length)];
+  const givenSet = new Set(puzzle.given.map(([r,c])=>`${r},${c}`));
+  diffEl.textContent = 'Difficulty: ' + puzzle.name;
+  statusEl.textContent = 'Fill the grid (1–4, no repeats in row/col/2×2 box)';
+  gridEl.innerHTML = ''; inputs = [];
+  for (let r = 0; r < 4; r++) {
+    inputs[r] = [];
+    for (let c = 0; c < 4; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (c === 1) cell.classList.add('border-right');
+      if (r === 1) cell.classList.add('border-bottom');
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.maxLength = 1; inp.inputMode = 'numeric';
+      if (givenSet.has(`${r},${c}`)) {
+        cell.classList.add('given'); inp.value = puzzle.sol[r][c];
+      }
+      inp.addEventListener('input', () => {
+        inp.value = inp.value.replace(/[^1-4]/g,'').slice(-1);
+        cell.classList.remove('error');
+        checkErrors();
+      });
+      cell.appendChild(inp); inputs[r][c] = inp; gridEl.appendChild(cell);
+    }
+  }
+}
+
+function getVal(r,c) { return parseInt(inputs[r][c].value)||0; }
+
+function checkErrors() {
+  // Clear errors
+  for (let r=0;r<4;r++) for(let c=0;c<4;c++) inputs[r][c].parentElement.classList.remove('error');
+  // Check rows, cols, boxes
+  for (let r=0;r<4;r++) {
+    const vals = [0,1,2,3].map(c=>getVal(r,c)).filter(v=>v);
+    if (new Set(vals).size !== vals.length) [0,1,2,3].forEach(c=>{ if(getVal(r,c)) inputs[r][c].parentElement.classList.add('error'); });
+  }
+  for (let c=0;c<4;c++) {
+    const vals = [0,1,2,3].map(r=>getVal(r,c)).filter(v=>v);
+    if (new Set(vals).size !== vals.length) [0,1,2,3].forEach(r=>{ if(getVal(r,c)) inputs[r][c].parentElement.classList.add('error'); });
+  }
+  for (const [br,bc] of [[0,0],[0,2],[2,0],[2,2]]) {
+    const cells = []; for(let r=br;r<br+2;r++) for(let c=bc;c<bc+2;c++) cells.push([r,c]);
+    const vals = cells.map(([r,c])=>getVal(r,c)).filter(v=>v);
+    if (new Set(vals).size !== vals.length) cells.forEach(([r,c])=>{ if(getVal(r,c)) inputs[r][c].parentElement.classList.add('error'); });
+  }
+}
+
+document.getElementById('check-btn').addEventListener('click', () => {
+  for (let r=0;r<4;r++) for(let c=0;c<4;c++) if(!getVal(r,c)){statusEl.textContent='Fill all cells first!';return;}
+  checkErrors();
+  const errs = document.querySelectorAll('.error').length;
+  if (errs) { statusEl.textContent = `${errs} cell(s) with errors — fix them!`; }
+  else {
+    let correct = true;
+    for (let r=0;r<4;r++) for(let c=0;c<4;c++) if(getVal(r,c)!==puzzle.sol[r][c]) correct=false;
+    statusEl.textContent = correct ? '🎉 Solved!' : 'Values conflict — check again';
+  }
+});
+
+document.getElementById('solve-btn').addEventListener('click', () => {
+  for (let r=0;r<4;r++) for(let c=0;c<4;c++) { inputs[r][c].value = puzzle.sol[r][c]; inputs[r][c].parentElement.classList.remove('error'); }
+  statusEl.textContent = '🔓 Solution revealed!';
+});
+
+document.getElementById('new-btn').addEventListener('click', loadPuzzle);
+loadPuzzle();
+</script>
+</body>
+</html>

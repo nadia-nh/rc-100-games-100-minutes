@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tetris Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+#wrap { display: flex; gap: 16px; align-items: flex-start; }
+canvas { border: 2px solid #333; }
+#side { width: 100px; display: flex; flex-direction: column; gap: 10px; font-size: 0.85rem; color: #aaa; }
+#side b { color: #fff; font-size: 1.1rem; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c" width="200" height="400"></canvas>
+<div id="side">
+  <div>Next:<br><canvas id="next" width="80" height="80"></canvas></div>
+  <div>Score<br><b id="score">0</b></div>
+  <div>Lines<br><b id="lines">0</b></div>
+  <div>Level<br><b id="level">1</b></div>
+</div>
+</div>
+<div id="ui">
+  <span id="msg">← → move · ↑ rotate · ↓ soft drop · Space hard drop</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const ncanvas=document.getElementById('next'),nctx=ncanvas.getContext('2d');
+const W=200,H=400,T=20,COLS=10,ROWS=20;
+const msg=document.getElementById('msg'),btn=document.getElementById('btn');
+
+const PIECES=[
+  {shape:[[1,1,1,1]],color:'#0ff'},
+  {shape:[[1,1],[1,1]],color:'#ff0'},
+  {shape:[[1,1,1],[0,1,0]],color:'#a0f'},
+  {shape:[[1,1,1],[1,0,0]],color:'#f80'},
+  {shape:[[1,1,1],[0,0,1]],color:'#00f'},
+  {shape:[[1,1,0],[0,1,1]],color:'#0f0'},
+  {shape:[[0,1,1],[1,1,0]],color:'#f00'},
+];
+
+let board,piece,next,score,lines,level,dropTimer,raf,state='idle';
+
+function randPiece(){const p=PIECES[Math.floor(Math.random()*PIECES.length)];return{shape:p.shape.map(r=>[...r]),color:p.color,r:0,c:Math.floor((COLS-p.shape[0].length)/2)};}
+
+function init(){
+  board=Array(ROWS).fill(null).map(()=>Array(COLS).fill(0));
+  piece=randPiece();next=randPiece();score=0;lines=0;level=1;dropTimer=0;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function rotate(shape){return shape[0].map((_,c)=>shape.map(row=>row[c]).reverse());}
+
+function valid(shape,r,c){
+  return shape.every((row,dr)=>row.every((v,dc)=>!v||
+    (r+dr>=0&&r+dr<ROWS&&c+dc>=0&&c+dc<COLS&&!board[r+dr][c+dc])));
+}
+
+function place(){
+  piece.shape.forEach((row,dr)=>row.forEach((v,dc)=>{if(v)board[piece.r+dr][piece.c+dc]=piece.color;}));
+  // clear lines
+  let cleared=0;
+  for(let r=ROWS-1;r>=0;r--){
+    if(board[r].every(v=>v)){board.splice(r,1);board.unshift(Array(COLS).fill(0));cleared++;r++;}
+  }
+  if(cleared){lines+=cleared;score+=cleared*cleared*100*level;level=Math.floor(lines/10)+1;}
+  piece=next;next=randPiece();
+  if(!valid(piece.shape,piece.r,piece.c)){endGame();return;}
+}
+
+function drop(){
+  if(valid(piece.shape,piece.r+1,piece.c))piece.r++;else{place();}
+}
+
+function hardDrop(){
+  while(valid(piece.shape,piece.r+1,piece.c)){piece.r++;score+=2;}
+  place();
+}
+
+function update(){
+  dropTimer++;
+  const speed=Math.max(3,30-level*2);
+  if(dropTimer>=speed){dropTimer=0;drop();}
+  document.getElementById('score').textContent=score;
+  document.getElementById('lines').textContent=lines;
+  document.getElementById('level').textContent=level;
+}
+
+function drawBlock(ctx,x,y,color,sz=T){
+  ctx.fillStyle=color;ctx.fillRect(x+1,y+1,sz-2,sz-2);
+  ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(x+1,y+1,sz-2,4);
+  ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(x+1,y+sz-4,sz-2,3);
+}
+
+function draw(){
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)ctx.strokeRect(c*T,r*T,T,T);
+  // board
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c])drawBlock(ctx,c*T,r*T,board[r][c]);
+  // ghost
+  let ghostR=piece.r;while(valid(piece.shape,ghostR+1,piece.c))ghostR++;
+  piece.shape.forEach((row,dr)=>row.forEach((v,dc)=>{
+    if(v){ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect((piece.c+dc)*T+1,(ghostR+dr)*T+1,T-2,T-2);}
+  }));
+  // piece
+  piece.shape.forEach((row,dr)=>row.forEach((v,dc)=>{if(v)drawBlock(ctx,(piece.c+dc)*T,(piece.r+dr)*T,piece.color);}));
+  // next preview
+  nctx.fillStyle='#111';nctx.fillRect(0,0,80,80);
+  const ns=T*0.9;const ox=(80-next.shape[0].length*ns)/2,oy=(80-next.shape.length*ns)/2;
+  next.shape.forEach((row,dr)=>row.forEach((v,dc)=>{if(v)drawBlock(nctx,ox+dc*ns,oy+dr*ns,next.color,ns);}));
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#0ff';ctx.font='bold 18px monospace';ctx.textAlign='center';
+    ctx.fillText('TETRIS',W/2,H/2-16);ctx.font='11px monospace';ctx.fillStyle='#fff';
+    ctx.fillText('← → ↑ rotate ↓ drop',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 20px monospace';ctx.textAlign='center';
+  ctx.fillText('GAME OVER',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='13px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+10);ctx.textAlign='left';
+  msg.textContent='Score: '+score+' · Lines: '+lines;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{
+  if(state==='idle'||state==='over'){init();return;}
+  if(state!=='playing')return;
+  if(e.code==='ArrowLeft'){e.preventDefault();if(valid(piece.shape,piece.r,piece.c-1))piece.c--;}
+  if(e.code==='ArrowRight'){e.preventDefault();if(valid(piece.shape,piece.r,piece.c+1))piece.c++;}
+  if(e.code==='ArrowDown'){e.preventDefault();drop();score++;}
+  if(e.code==='ArrowUp'){e.preventDefault();const r=rotate(piece.shape);if(valid(r,piece.r,piece.c))piece.shape=r;}
+  if(e.code==='Space'){e.preventDefault();hardDrop();}
+  if(e.code==='KeyZ'){const r=rotate(rotate(rotate(piece.shape)));if(valid(r,piece.r,piece.c))piece.shape=r;}
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

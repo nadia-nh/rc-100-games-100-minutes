@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Connect Four</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a3e; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 14px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#board-wrap { background: #2c4aad; padding: 10px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+#col-btns { display: flex; gap: 6px; margin-bottom: 6px; }
+.col-btn { width: 56px; height: 28px; background: rgba(255,255,255,0.15); border: none; border-radius: 6px;
+           color: #fff; cursor: pointer; font-size: 1rem; }
+.col-btn:hover { background: rgba(255,255,255,0.3); }
+.col-btn:disabled { opacity: 0.3; cursor: default; }
+#grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cell { width: 56px; height: 56px; border-radius: 50%; background: #1a2a7a; }
+.cell.p1 { background: #e74c3c; box-shadow: inset 0 4px 8px rgba(0,0,0,0.3); }
+.cell.p2 { background: #f1c40f; box-shadow: inset 0 4px 8px rgba(0,0,0,0.3); }
+.cell.win { animation: pulse 0.4s infinite alternate; }
+@keyframes pulse { from{filter:brightness(1)} to{filter:brightness(1.5)} }
+#status { font-size: 1.1rem; font-weight: 700; min-height: 1.5em; }
+#turn-indicator { width: 20px; height: 20px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+#controls { display: flex; gap: 10px; }
+button.restart { background: #2980b9; color: #fff; border: none; padding: 10px 24px;
+                 border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+a { color: #666; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>🔴 Connect Four</h1>
+<div id="board-wrap">
+  <div id="col-btns"></div>
+  <div id="grid"></div>
+</div>
+<div id="status"><span id="turn-indicator"></span><span id="turn-text">Red's turn</span></div>
+<div id="controls"><button class="restart" id="restart">New Game</button></div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const ROWS=6, COLS=7;
+let board, turn, done;
+const gridEl=document.getElementById('grid'), colBtnsEl=document.getElementById('col-btns');
+const statusEl=document.getElementById('status'), turnText=document.getElementById('turn-text');
+const turnInd=document.getElementById('turn-indicator');
+
+function newGame() {
+  board=Array(ROWS).fill(null).map(()=>Array(COLS).fill(0));
+  turn=1; done=false;
+  turnInd.style.background='#e74c3c'; turnText.textContent="Red's turn";
+  renderBoard();
+}
+
+function renderBoard() {
+  gridEl.innerHTML=''; colBtnsEl.innerHTML='';
+  for(let c=0;c<COLS;c++){
+    const btn=document.createElement('button'); btn.className='col-btn'; btn.textContent='▼';
+    if(done)btn.disabled=true;
+    btn.addEventListener('click',()=>drop(c));
+    colBtnsEl.appendChild(btn);
+  }
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const cell=document.createElement('div');
+    cell.className='cell'+(board[r][c]===1?' p1':board[r][c]===2?' p2':'');
+    cell.id=`c${r}_${c}`; gridEl.appendChild(cell);
+  }
+}
+
+function drop(c) {
+  if(done)return;
+  let row=-1;
+  for(let r=ROWS-1;r>=0;r--){if(!board[r][c]){row=r;break;}}
+  if(row===-1)return;
+  board[row][c]=turn;
+  const cell=document.getElementById(`c${row}_${c}`);
+  cell.className='cell '+(turn===1?'p1':'p2');
+  const wins=checkWin(row,c,turn);
+  if(wins){done=true;wins.forEach(([r2,c2])=>document.getElementById(`c${r2}_${c2}`).classList.add('win'));
+    turnInd.style.background=turn===1?'#e74c3c':'#f1c40f';
+    turnText.textContent=(turn===1?'🔴 Red':'🟡 Yellow')+' wins!';
+    colBtnsEl.querySelectorAll('.col-btn').forEach(b=>b.disabled=true); return;}
+  if(board[0].every((_,c)=>board[0][c]!==0)){done=true;turnText.textContent="It's a draw!";return;}
+  turn=turn===1?2:1;
+  turnInd.style.background=turn===1?'#e74c3c':'#f1c40f';
+  turnText.textContent=(turn===1?'🔴 Red':'🟡 Yellow')+"'s turn";
+  // AI for player 2
+  if(turn===2&&!done) setTimeout(aiMove,300);
+}
+
+function aiMove(){
+  // Try to win, then block, then random
+  for(const player of [2,1]){
+    for(let c=0;c<COLS;c++){
+      let row=-1; for(let r=ROWS-1;r>=0;r--){if(!board[r][c]){row=r;break;}}
+      if(row===-1)continue;
+      board[row][c]=player;
+      if(checkWin(row,c,player)){board[row][c]=0; drop(c); return;}
+      board[row][c]=0;
+    }
+  }
+  // Center preference
+  const order=[3,2,4,1,5,0,6];
+  for(const c of order){let row=-1;for(let r=ROWS-1;r>=0;r--){if(!board[r][c]){row=r;break;}}if(row!==-1){drop(c);return;}}
+}
+
+function checkWin(r,c,p){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(const [dr,dc] of dirs){
+    const cells=[[r,c]];
+    for(let k=1;k<4;k++){const nr=r+dr*k,nc=c+dc*k;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===p)cells.push([nr,nc]);else break;}
+    for(let k=1;k<4;k++){const nr=r-dr*k,nc=c-dc*k;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&board[nr][nc]===p)cells.push([nr,nc]);else break;}
+    if(cells.length>=4)return cells.slice(0,4);
+  }
+  return null;
+}
+
+document.getElementById('restart').addEventListener('click',newGame);
+newGame();
+</script>
+</body>
+</html>

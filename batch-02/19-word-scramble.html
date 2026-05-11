@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Word Scramble</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d2137; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 18px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 24px; font-size: 1rem; color: #aaa; }
+#scramble { font-size: 3rem; font-weight: 900; letter-spacing: 10px; color: #4fc3f7;
+            font-family: monospace; min-height: 72px; text-align: center; }
+#hint { color: #888; font-size: 0.9rem; min-height: 1.2em; }
+#input { font-size: 1.5rem; padding: 10px 18px; border-radius: 8px; border: 2px solid #4fc3f7;
+         background: #1a2a3a; color: #eee; text-align: center; width: 280px; outline: none;
+         font-family: monospace; letter-spacing: 4px; text-transform: uppercase; }
+#input.correct { border-color: #27ae60; background: #0a2a0a; }
+#input.wrong { border-color: #e74c3c; animation: shake 0.3s; }
+#status { font-size: 1rem; min-height: 1.5em; font-weight: 700; }
+#timer-bar { width: 300px; height: 6px; background: #1a2a3a; border-radius: 3px; }
+#timer-fill { height: 100%; background: #4fc3f7; border-radius: 3px; transition: width 0.2s; }
+button { background: #0277bd; color: #fff; border: none; padding: 10px 24px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+</style>
+</head>
+<body>
+<h1>🔤 Word Scramble</h1>
+<div id="info"><span>Score: <b id="score">0</b></span><span>Round: <b id="round">1</b>/10</span></div>
+<div id="timer-bar"><div id="timer-fill" style="width:100%"></div></div>
+<div id="scramble">—</div>
+<div id="hint"></div>
+<input id="input" type="text" placeholder="TYPE ANSWER" maxlength="15" autocomplete="off" autocorrect="off" spellcheck="false" />
+<div id="status">Unscramble the word!</div>
+<button id="btn">Start</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const WORDS = [
+  {w:'ELEPHANT',h:'Large animal with a trunk'},
+  {w:'COMPUTER',h:'Electronic device you use daily'},
+  {w:'MOUNTAIN',h:'Tall natural landform'},
+  {w:'RAINBOW',h:'Colorful arc after rain'},
+  {w:'LIBRARY',h:'Place with many books'},
+  {w:'DOLPHIN',h:'Intelligent sea mammal'},
+  {w:'VOLCANO',h:'Mountain that erupts'},
+  {w:'PYRAMID',h:'Ancient Egyptian structure'},
+  {w:'LANTERN',h:'A portable light source'},
+  {w:'BLOSSOM',h:'A flower or to bloom'},
+  {w:'CAPTAIN',h:'Leader of a ship or team'},
+  {w:'CRYSTAL',h:'Clear, geometric solid'},
+  {w:'THUNDER',h:'Sound during a storm'},
+  {w:'KINGDOM',h:'Land ruled by a king'},
+  {w:'JOURNEY',h:'A long trip or travel'},
+];
+const scramble = w => w.split('').sort(() => Math.random() - 0.5).join('');
+
+const scrambleEl = document.getElementById('scramble');
+const hintEl = document.getElementById('hint');
+const inputEl = document.getElementById('input');
+const statusEl = document.getElementById('status');
+const scoreEl = document.getElementById('score');
+const roundEl = document.getElementById('round');
+const fill = document.getElementById('timer-fill');
+const btn = document.getElementById('btn');
+let queue, idx, score, timerInt, timeLeft, current, running;
+
+function start() {
+  queue = [...WORDS].sort(() => Math.random() - 0.5).slice(0, 10);
+  idx = 0; score = 0; running = true;
+  scoreEl.textContent = 0; btn.style.display = 'none';
+  nextWord();
+}
+
+function nextWord() {
+  if (idx >= queue.length) { endGame(); return; }
+  current = queue[idx]; idx++;
+  roundEl.textContent = idx;
+  let sc = scramble(current.w);
+  while (sc === current.w) sc = scramble(current.w);
+  scrambleEl.textContent = sc;
+  hintEl.textContent = '💡 ' + current.h;
+  inputEl.value = ''; inputEl.className = ''; inputEl.focus();
+  statusEl.textContent = 'Unscramble the word!';
+  timeLeft = 15; fill.style.width = '100%';
+  clearInterval(timerInt);
+  timerInt = setInterval(() => {
+    timeLeft -= 0.2;
+    fill.style.width = (timeLeft / 15 * 100) + '%';
+    if (timeLeft <= 0) { clearInterval(timerInt); statusEl.textContent = `⏰ Time! The word was ${current.w}`; inputEl.disabled = true; setTimeout(() => { inputEl.disabled = false; nextWord(); }, 1200); }
+  }, 200);
+}
+
+function endGame() {
+  running = false; clearInterval(timerInt);
+  scrambleEl.textContent = '🏁';
+  hintEl.textContent = '';
+  statusEl.textContent = `Final score: ${score}/100. ${score >= 80 ? '🏆 Excellent!' : score >= 50 ? '👍 Good!' : '😅 Try again!'}`;
+  btn.textContent = 'Play Again'; btn.style.display = '';
+}
+
+inputEl.addEventListener('input', () => {
+  const val = inputEl.value.toUpperCase().trim();
+  if (val === current.w) {
+    clearInterval(timerInt);
+    inputEl.className = 'correct';
+    score += Math.ceil(timeLeft / 15 * 10);
+    scoreEl.textContent = score;
+    statusEl.textContent = '✅ Correct!';
+    setTimeout(nextWord, 700);
+  } else if (val.length === current.w.length) {
+    inputEl.className = 'wrong';
+    setTimeout(() => inputEl.className = '', 400);
+  }
+});
+btn.addEventListener('click', start);
+</script>
+</body>
+</html>

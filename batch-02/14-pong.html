@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pong</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+canvas { border: 2px solid #444; }
+#ui { display: flex; gap: 16px; align-items: center; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 8px 18px; cursor: pointer; font: inherit; border-radius: 4px; }
+a { color: #666; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="360"></canvas>
+<div id="ui">
+  <span id="msg">W/S or mouse · First to 7</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('btn');
+const W = canvas.width, H = canvas.height;
+const PW = 10, PH = 70, BALL_R = 8, WIN = 7;
+let state = 'idle', p1, p2, ball, s1, s2, raf;
+let keys = {}, mouseY = H / 2;
+
+canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); mouseY = e.clientY - r.top; });
+document.addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space' && (state==='idle'||state==='over')) init(); });
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+function resetBall(dir = 1) {
+  const angle = (Math.random() * 0.6 - 0.3);
+  ball = { x: W / 2, y: H / 2, vx: dir * 4.5 * Math.cos(angle), vy: 4.5 * Math.sin(angle) };
+}
+
+function init() {
+  p1 = { x: 10, y: H/2 - PH/2 };
+  p2 = { x: W - 10 - PW, y: H/2 - PH/2 };
+  s1 = 0; s2 = 0;
+  state = 'playing';
+  resetBall();
+  btn.textContent = 'Restart';
+  msg.textContent = '0 — 0';
+  cancelAnimationFrame(raf);
+  loop();
+}
+
+function update() {
+  // p1 (left) — mouse or W/S
+  const target = keys['KeyW'] ? p1.y - 5 : keys['KeyS'] ? p1.y + 5 : mouseY - PH/2;
+  p1.y = Math.max(0, Math.min(H - PH, target));
+  // p2 AI
+  const center = p2.y + PH / 2;
+  if (center < ball.y - 4) p2.y = Math.min(H - PH, p2.y + 4);
+  else if (center > ball.y + 4) p2.y = Math.max(0, p2.y - 4);
+
+  ball.x += ball.vx; ball.y += ball.vy;
+  if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
+  if (ball.y + BALL_R > H) { ball.y = H - BALL_R; ball.vy = -Math.abs(ball.vy); }
+  // p1 paddle
+  if (ball.x - BALL_R < p1.x + PW && ball.vx < 0 && ball.y > p1.y && ball.y < p1.y + PH) {
+    ball.vx = Math.abs(ball.vx) * 1.05;
+    ball.vy += (ball.y - (p1.y + PH/2)) * 0.12;
+  }
+  // p2 paddle
+  if (ball.x + BALL_R > p2.x && ball.vx > 0 && ball.y > p2.y && ball.y < p2.y + PH) {
+    ball.vx = -Math.abs(ball.vx) * 1.05;
+    ball.vy += (ball.y - (p2.y + PH/2)) * 0.12;
+  }
+  // clamp speed
+  const spd = Math.hypot(ball.vx, ball.vy);
+  if (spd > 12) { ball.vx *= 12/spd; ball.vy *= 12/spd; }
+  // score
+  if (ball.x < 0) { s2++; if (s2 >= WIN) { endGame(false); return; } msg.textContent = s1 + ' — ' + s2; resetBall(1); }
+  if (ball.x > W) { s1++; if (s1 >= WIN) { endGame(true); return; } msg.textContent = s1 + ' — ' + s2; resetBall(-1); }
+}
+
+function draw() {
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  ctx.setLineDash([10, 10]);
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#eee';
+  ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(s1 + '  ' + s2, W/2, 50);
+  ctx.textAlign = 'left';
+  ctx.fillRect(p1.x, p1.y, PW, PH);
+  ctx.fillRect(p2.x, p2.y, PW, PH);
+  ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
+  ctx.fillStyle = '#f1c40f'; ctx.fill();
+  if (state === 'idle') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('PONG', W/2, H/2-16);
+    ctx.font = '14px monospace'; ctx.fillText('Mouse/W-S to move', W/2, H/2+16);
+    ctx.textAlign = 'left';
+  }
+}
+
+function endGame(playerWon) {
+  state = 'over';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = playerWon ? '#2ecc71' : '#e74c3c';
+  ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(playerWon ? 'YOU WIN!' : 'YOU LOSE!', W/2, H/2-16);
+  ctx.fillStyle = '#fff'; ctx.font = '16px monospace';
+  ctx.fillText(s1 + ' — ' + s2, W/2, H/2+16);
+  ctx.textAlign = 'left';
+  msg.textContent = (playerWon ? '🎉 ' : '😔 ') + s1 + ' — ' + s2;
+}
+
+function loop() { update(); draw(); if (state === 'playing') raf = requestAnimationFrame(loop); }
+btn.addEventListener('click', init);
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Musical Memory</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 14px; }
+#buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 280px; height: 280px; }
+.pad { border-radius: 12px; cursor: pointer; border: 3px solid rgba(255,255,255,0.1);
+       display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+       transition: filter 0.05s; user-select: none; }
+.pad:hover { filter: brightness(1.2); }
+.pad.lit { filter: brightness(2); border-color: rgba(255,255,255,0.6); }
+#pad0 { background: #c0392b; }
+#pad1 { background: #27ae60; }
+#pad2 { background: #2980b9; }
+#pad3 { background: #f39c12; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="level-display" style="font-size:1.1rem;color:#aaa">Level: 1</div>
+<div id="buttons">
+  <div class="pad" id="pad0">🔴</div>
+  <div class="pad" id="pad1">🟢</div>
+  <div class="pad" id="pad2">🔵</div>
+  <div class="pad" id="pad3">🟡</div>
+</div>
+<div id="ui">
+  <span id="msg">Watch the sequence then repeat it!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const FREQS=[262,330,392,523];// C E G C
+const msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let seq,playerIdx,level,state='idle',playing=false;
+
+const ac=new(window.AudioContext||window.webkitAudioContext)();
+function playNote(i,dur=0.3){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.connect(g);g.connect(ac.destination);
+  o.type='sine';o.frequency.value=FREQS[i];
+  g.gain.setValueAtTime(0.4,ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+  o.start();o.stop(ac.currentTime+dur);
+}
+
+function litPad(i,on){
+  document.getElementById('pad'+i).classList.toggle('lit',on);
+}
+
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+async function playSequence(){
+  playing=true;
+  for(const step of seq){
+    await sleep(150);
+    litPad(step,true);playNote(step,0.4);
+    await sleep(450);
+    litPad(step,false);
+  }
+  playing=false;playerIdx=0;state='player';
+  msg.textContent=`Your turn! Repeat ${seq.length} steps.`;
+}
+
+function init(){
+  seq=[];level=1;state='watching';btn.textContent='Restart';
+  seq.push(Math.floor(Math.random()*4));
+  document.getElementById('level-display').textContent='Level: 1';
+  msg.textContent='Watch...';
+  playSequence();
+}
+
+function padClick(i){
+  if(state!=='player'||playing)return;
+  litPad(i,true);playNote(i,0.25);
+  setTimeout(()=>litPad(i,false),200);
+  if(seq[playerIdx]===i){
+    playerIdx++;
+    if(playerIdx>=seq.length){
+      level++;seq.push(Math.floor(Math.random()*4));
+      document.getElementById('level-display').textContent='Level: '+level;
+      state='watching';msg.textContent='Level '+level+'! Watch...';
+      setTimeout(playSequence,600);
+    }
+  } else {endGame();}
+}
+
+function endGame(){
+  state='over';
+  msg.textContent=`Wrong! You reached level ${level}. Score: ${level-1} 🎵`;
+  playNote(0,0.8);setTimeout(()=>playNote(0,0.8),300);
+}
+
+for(let i=0;i<4;i++)document.getElementById('pad'+i).addEventListener('click',()=>padClick(i));
+btn.addEventListener('click',init);
+</script>
+</body>
+</html>

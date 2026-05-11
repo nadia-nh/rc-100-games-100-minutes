@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Solitaire Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a5a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; overflow-x: auto; }
+canvas { cursor: pointer; border-radius: 4px; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #2a7a2a; color: #fff; border: 1px solid #4aaa4a; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #3a8a3a; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="700" height="520"></canvas>
+<div id="ui">
+  <span id="msg">Click stock to draw · Drag cards to move!</span>
+  <button id="btn">New Game</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=700,H=520,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const CW=80,CH=110,SUITS=['♠','♥','♦','♣'],RED=new Set(['♥','♦']);
+
+function makeDeck(){
+  const d=[];
+  for(const s of SUITS)for(let v=1;v<=13;v++)d.push({s,v,face:false});
+  for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+
+function label(v){return v===1?'A':v===11?'J':v===12?'Q':v===13?'K':String(v);}
+
+let stock,waste,foundations,tableau,drag,dragSrc,state='idle';
+
+function init(){
+  const deck=makeDeck();
+  stock=[];waste=[];foundations=[[],[],[],[]];
+  tableau=Array(7).fill(null).map(()=>[]);
+  let di=0;
+  for(let col=0;col<7;col++){
+    for(let row=0;row<=col;row++){
+      const c={...deck[di++]};c.face=row===col;tableau[col].push(c);
+    }
+  }
+  while(di<deck.length)stock.push({...deck[di++],face:false});
+  drag=null;state='playing';btn.textContent='New Game';
+  msg.textContent='Click stock to draw · Move cards to foundations!';draw();
+}
+
+function drawStock(){
+  if(stock.length===0){stock=waste.reverse().map(c=>({...c,face:false}));waste=[];}
+  else{const c=stock.pop();c.face=true;waste.push(c);}
+  draw();
+}
+
+function cardColor(s){return RED.has(s)?'#c00':'#000';}
+
+function canPlaceFoundation(fi,card){
+  const f=foundations[fi];
+  if(!f.length)return card.v===1;
+  const top=f[f.length-1];
+  return top.s===card.s&&card.v===top.v+1;
+}
+
+function canPlaceTableau(col,cards){
+  const t=tableau[col];const card=cards[0];
+  if(!t.length)return card.v===13;
+  const top=t[t.length-1];if(!top.face)return false;
+  return RED.has(top.s)!==RED.has(card.s)&&card.v===top.v-1;
+}
+
+function autoFoundation(){
+  let moved=true;
+  while(moved){moved=false;
+    for(let fi=0;fi<4;fi++){
+      // from waste
+      if(waste.length&&canPlaceFoundation(fi,waste[waste.length-1])){foundations[fi].push(waste.pop());moved=true;}
+      // from tableau
+      for(let col=0;col<7;col++){const t=tableau[col];
+        if(t.length&&t[t.length-1].face&&canPlaceFoundation(fi,t[t.length-1])){foundations[fi].push(t.pop());if(t.length)t[t.length-1].face=true;moved=true;}}
+    }
+  }
+  if(foundations.every(f=>f.length===13)){endGame();return;}
+  draw();
+}
+
+function hitTest(mx,my){
+  // stock
+  if(mx>10&&mx<10+CW&&my>10&&my<10+CH)return{type:'stock'};
+  // waste
+  if(waste.length&&mx>100&&mx<100+CW&&my>10&&my<10+CH)return{type:'waste'};
+  // foundations
+  for(let fi=0;fi<4;fi++){
+    const fx=290+fi*(CW+10);if(mx>fx&&mx<fx+CW&&my>10&&my<10+CH)return{type:'foundation',fi};
+  }
+  // tableau
+  for(let col=0;col<7;col++){
+    const cx=10+col*(CW+10);
+    const t=tableau[col];
+    for(let i=t.length-1;i>=0;i--){
+      const cy=140+i*22;
+      if(mx>cx&&mx<cx+CW&&my>cy&&my<cy+(i===t.length-1?CH:22)){
+        if(t[i].face)return{type:'tableau',col,cardIdx:i};
+        break;
+      }
+    }
+    if(!t.length&&mx>cx&&mx<cx+CW&&my>140&&my<140+CH)return{type:'tableau',col,cardIdx:-1};
+  }
+  return null;
+}
+
+function drawCard(x,y,card,selected=false){
+  if(!card){ctx.fillStyle='rgba(255,255,255,0.1)';ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(x,y,CW,CH,6);ctx.fill();ctx.stroke();return;}
+  if(!card.face){
+    ctx.fillStyle='#2255aa';ctx.strokeStyle='#fff';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(x,y,CW,CH,6);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    for(let i=0;i<3;i++)for(let j=0;j<4;j++)ctx.fillRect(x+8+i*22,y+8+j*24,16,18);
+    return;
+  }
+  ctx.fillStyle=selected?'#fffff0':'#fff';ctx.strokeStyle=selected?'#ffd700':'#999';ctx.lineWidth=selected?2:1;
+  ctx.beginPath();ctx.roundRect(x,y,CW,CH,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle=cardColor(card.s);ctx.font='bold 13px monospace';
+  ctx.fillText(label(card.v),x+4,y+16);ctx.fillText(card.s,x+4,y+30);
+  ctx.font='22px serif';ctx.textAlign='center';ctx.fillText(card.s,x+CW/2,y+CH/2+8);
+  ctx.font='bold 13px monospace';ctx.textAlign='right';ctx.fillText(label(card.v),x+CW-4,y+CH-6);ctx.textAlign='left';
+}
+
+function draw(){
+  ctx.fillStyle='#1a5a1a';ctx.fillRect(0,0,W,H);
+  // stock
+  if(stock.length)drawCard(10,10,{face:false});else{ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(10,10,CW,CH,6);ctx.stroke();}
+  // waste
+  if(waste.length)drawCard(100,10,waste[waste.length-1]);else drawCard(100,10,null);
+  // foundations
+  for(let fi=0;fi<4;fi++){const fx=290+fi*(CW+10);const f=foundations[fi];
+    if(f.length)drawCard(fx,10,f[f.length-1]);else{ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.strokeStyle='rgba(255,215,0,0.4)';ctx.beginPath();ctx.roundRect(fx,10,CW,CH,6);ctx.stroke();ctx.fillStyle='rgba(255,215,0,0.1)';ctx.fill();ctx.fillStyle='rgba(255,215,0,0.5)';ctx.font='24px serif';ctx.textAlign='center';ctx.fillText(SUITS[fi],fx+CW/2,10+CH/2+8);ctx.textAlign='left';}}
+  // tableau
+  for(let col=0;col<7;col++){
+    const cx=10+col*(CW+10),t=tableau[col];
+    if(!t.length){drawCard(cx,140,null);continue;}
+    t.forEach((card,i)=>{
+      const isDragged=drag&&drag.src.type==='tableau'&&drag.src.col===col&&i>=drag.src.cardIdx;
+      if(!isDragged)drawCard(cx,140+i*22,card);
+    });
+  }
+  // drag
+  if(drag){drag.cards.forEach((c,i)=>drawCard(drag.mx-CW/2,drag.my-16+i*22,c,true));}
+  if(state==='idle'){ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#2ecc71';ctx.font='bold 24px monospace';ctx.textAlign='center';ctx.fillText('SOLITAIRE',W/2,H/2-16);ctx.font='13px monospace';ctx.fillStyle='#fff';ctx.fillText('Click to deal',W/2,H/2+14);ctx.textAlign='left';}
+}
+
+function endGame(){state='over';ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffd700';ctx.font='bold 26px monospace';ctx.textAlign='center';ctx.fillText('YOU WIN! 🎉',W/2,H/2-16);ctx.textAlign='left';msg.textContent='Congratulations!';}
+
+canvas.addEventListener('click',e=>{
+  if(state==='idle'){init();return;}
+  const r=canvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const hit=hitTest(mx,my);if(!hit)return;
+  if(hit.type==='stock'){drawStock();}
+  else if(hit.type==='foundation'||hit.type==='tableau')autoFoundation();
+});
+
+canvas.addEventListener('mousedown',e=>{
+  if(state!=='playing')return;
+  const r=canvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const hit=hitTest(mx,my);if(!hit)return;
+  if(hit.type==='stock'){drawStock();return;}
+  let cards=[];
+  if(hit.type==='waste'&&waste.length){cards=[waste[waste.length-1]];drag={cards,src:hit,mx,my};}
+  else if(hit.type==='tableau'&&hit.cardIdx>=0){cards=tableau[hit.col].slice(hit.cardIdx);drag={cards,src:{...hit},mx,my};}
+  else if(hit.type==='foundation'){const f=foundations[hit.fi];if(f.length){cards=[f[f.length-1]];drag={cards,src:hit,mx,my};}}
+});
+
+canvas.addEventListener('mousemove',e=>{
+  if(!drag)return;const r=canvas.getBoundingClientRect();drag.mx=e.clientX-r.left;drag.my=e.clientY-r.top;draw();
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(!drag)return;
+  const r=canvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const hit=hitTest(mx,my);
+  if(hit&&hit!==drag.src){
+    if(hit.type==='foundation'&&drag.cards.length===1&&canPlaceFoundation(hit.fi,drag.cards[0])){
+      removeDragSrc();foundations[hit.fi].push(drag.cards[0]);
+    } else if(hit.type==='tableau'&&canPlaceTableau(hit.col,drag.cards)){
+      removeDragSrc();drag.cards.forEach(c=>tableau[hit.col].push(c));
+    }
+  }
+  drag=null;if(foundations.every(f=>f.length===13))endGame();draw();
+});
+
+function removeDragSrc(){
+  const src=drag.src;
+  if(src.type==='waste')waste.pop();
+  else if(src.type==='tableau'){tableau[src.col].splice(src.cardIdx);if(tableau[src.col].length)tableau[src.col][tableau[src.col].length-1].face=true;}
+  else if(src.type==='foundation')foundations[src.fi].pop();
+}
+
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

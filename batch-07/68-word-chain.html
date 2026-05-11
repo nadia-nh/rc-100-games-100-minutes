@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Word Chain</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 12px; }
+#game { width: 420px; display: flex; flex-direction: column; gap: 10px; }
+#chain { display: flex; flex-wrap: wrap; gap: 6px; min-height: 40px; padding: 8px;
+         background: #fff; border: 1px solid #ccc; border-radius: 6px; }
+.word-chip { background: #4a8ac4; color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 0.9rem; }
+.word-chip.new { background: #2ecc71; }
+#hint { color: #888; font-size: 0.85rem; min-height: 20px; }
+#input-row { display: flex; gap: 8px; }
+#word-input { flex: 1; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font: inherit; font-size: 1rem; }
+#word-input:focus { outline: none; border-color: #4a8ac4; }
+#submit { background: #4a8ac4; color: #fff; border: none; padding: 8px 16px; cursor: pointer; font: inherit; border-radius: 6px; }
+#submit:hover { background: #3a7ab4; }
+#timer-bar { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+#timer-fill { height: 100%; background: #2ecc71; transition: width 0.1s, background 0.3s; border-radius: 4px; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button.main { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="timer-bar"><div id="timer-fill" style="width:100%"></div></div>
+  <div id="chain"></div>
+  <div id="hint"></div>
+  <div id="input-row">
+    <input id="word-input" type="text" placeholder="Type a word..." autocomplete="off" spellcheck="false">
+    <button id="submit">→</button>
+  </div>
+</div>
+<div id="ui">
+  <span id="msg">Type a word starting with the last letter!</span>
+  <button class="main" id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+// Large word list for validation
+const WORDS=new Set(`cat the and for are but not you all can had her was one our out day get has him his how man new now old see two way who boy did its let put say she too use
+apple arrow about above after again agent agree ahead aimed alien align alive alone along alter angel anger angle angry anime ankle annex annoy
+back ball band bark barn base bath bear beat been bell belt best bike bill bird bite blow blue boat body bold bolt bone book boom boot bore
+born both bowl bulk bull burn busy buzz cabin cake call calm came care cart case cash cast cave cell chef chip city clam clan claw clay clip
+clock club coal coat code coil coin cold come cone cook cool cope copy cord core corn cost cove crew crop cube curl cute dark dart dash data
+date dawn deal dean dear debt deck deed deep deny desk dice dime dine dire disk dive dock does dome done door dose dote down draw drew
+drum dual duke dull dump dune dusk dust duty each earn east edge emit epic even ever exam exit face fact fail fair fall fame fang farm fast
+fate fawn faze feat feel fell felt fend fest film find fine fire firm fish fist five flag flat flaw flea fled flew flip flit flog flow
+foam foil fold folk fond font food fool foot fork form fort foul fowl free from full fund fuse fuss gain gale game gang gasp gate gave gaze
+gear gene gift gill give glad glee glob glow glue gnaw goal goat goes gold golf gone good gown grab gray grew grid grim grip grow
+guild gulf gulp guru gush gust hack hail half hall halo halt hand hang hard harm harp hash haste hate have hawk heap hear heat heel held
+hell helm help herb here hero hewn hide high hill hint hold hole home honk hood hook hop horn hose host hour howl hull hump hung hunt
+hurt husk hymn icon idea idle inch into iris iron isle itch item jail jeer jell jerk jest jinx joke jolt jump junk just keen keep kelp
+kept kern kite knew knob knot know lack lake lamb lame land lane lark last late laud lawn lean leap left lend lens less lift like lime
+limp linen lisp list live lobe loft lone long look loom loop lore lorn loss lost loud love lull lump lung lure lurk lush lust lute main
+make mall mane mare mark mars mash mask mast mate math mats maul maze mead meal mean meat mend mesh mew mild mile mill mime mind mine mint
+miss mist moan moat mock mole mood moon moot more morn most moth much mull murk must mute nail name nape navy near neck need nest nice
+nine noble node noel noise nook norm nose noun null numb oath obey odds omen once only open oral oven owed pace pack pact pale pall palm
+pang park part past pave pawl pawn pays peak peal peat peel peer pelt perk pest pick pier pike pile pill pine pink pion pipe pit plan
+play plea plod plop plot plow ploy plum plus poem poet poke pole poll pond poor pope pore pose posh post pour prep prey prim prop pull
+pump pure push quit race rack raga rage raid rain rake ramp rand rang rank rant rash rate rave rays read real reap reel rely rend rest
+rice rich ride rift rime ring rink ripe rise risk road roam roar robe rock rode role roll roof room rope rose ruby rude ruin rule rump
+rune rung runt ruse rush rust ruts safe said sail sake salt same sand sane sang sank sash save scan scar seal seam sear seat self sell
+semi sent sera shed shin ship shot show silk sill silo silt sink siren site size skit slab slag slap slat slaw sled slim slip slit slob
+slog slot slue slug slum slur small smit smog smug snap snob snug soak soap soar sock soil sold sole some song soon sort soul soup sour
+span spar spec sped spin spit spot stab stag star stem step stew stir stop stub stun sub such suit sulk sump sung sunk sure surf swam swap
+swat sway swim swum tack tail talk tall tame tamp tank tape tarn tarp tart task taut teak teal tear teem tell tend tens term test text than
+that them then they thin this thou thus tick tide tier till tilt time tine tiny tire toad told toll tomb tome tone tong toot torn toss tour
+town trap tray tree trek trim trip trod troll true tube tuck tuft tug tulle tuna tune turf tusk twin type upon user vain vale vane vary
+vast veil vend vent verb vest view vigil vile vine void volt vomit wail wait wake walk wall wand wane ward warm warn warp wart wave
+weak weal wean weep weld well welt went were west what when whip whom wide wile will wilt wimp wind wine wing wink wipe wire wise
+wish wisp with wive woke wolf womb wont word wore work worm worn wrap writ yawn year yell your zero zone zoom`.split(/\s+/).filter(w=>w.length>=3));
+
+const TIME=15;
+let chain,usedWords,current,timerEnd,raf,state='idle';
+
+function init(){
+  chain=[];usedWords=new Set();
+  const starters=[...WORDS].filter(w=>w.length===4);
+  current=starters[Math.floor(Math.random()*starters.length)];
+  chain.push({word:current,isNew:false});usedWords.add(current);
+  state='playing';timerEnd=Date.now()+TIME*1000;
+  document.getElementById('btn').textContent='Restart';
+  document.getElementById('word-input').value='';
+  document.getElementById('word-input').focus();
+  document.getElementById('hint').textContent=`Must start with: "${current.slice(-1).toUpperCase()}"`;
+  renderChain();requestAnimationFrame(tickTimer);
+}
+
+function tickTimer(){
+  if(state!=='playing')return;
+  const left=Math.max(0,(timerEnd-Date.now())/1000);
+  const pct=left/TIME*100;
+  const fill=document.getElementById('timer-fill');
+  fill.style.width=pct+'%';
+  fill.style.background=pct>50?'#2ecc71':pct>25?'#f39c12':'#e74c3c';
+  if(left<=0){endGame();return;}
+  requestAnimationFrame(tickTimer);
+}
+
+function submit(){
+  if(state!=='playing')return;
+  const input=document.getElementById('word-input');
+  const word=input.value.trim().toLowerCase();
+  input.value='';
+  if(word.length<3){setHint('Too short! Min 3 letters.');return;}
+  if(!WORDS.has(word)){setHint(`"${word}" not in word list.`);return;}
+  if(usedWords.has(word)){setHint(`"${word}" already used!`);return;}
+  const needed=current.slice(-1);
+  if(word[0]!==needed){setHint(`Must start with "${needed.toUpperCase()}"!`);return;}
+  usedWords.add(word);chain.push({word,isNew:true});current=word;
+  timerEnd=Date.now()+TIME*1000;
+  setHint(`Must start with: "${current.slice(-1).toUpperCase()}"`);
+  renderChain();
+  document.getElementById('msg').textContent=`Chain: ${chain.length} words!`;
+}
+
+function setHint(t){document.getElementById('hint').textContent=t;}
+
+function renderChain(){
+  const div=document.getElementById('chain');div.innerHTML='';
+  chain.slice(-8).forEach((w,i)=>{
+    const d=document.createElement('div');d.className='word-chip'+(w.isNew&&i===chain.slice(-8).length-1?' new':'');
+    d.textContent=w.word;div.appendChild(d);
+  });
+  div.scrollLeft=div.scrollWidth;
+}
+
+function endGame(){
+  state='over';
+  document.getElementById('timer-fill').style.width='0%';
+  document.getElementById('msg').textContent=`Time's up! Chain of ${chain.length} words!`;
+  setHint('Press Start to play again.');
+}
+
+document.getElementById('submit').addEventListener('click',submit);
+document.getElementById('word-input').addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+document.getElementById('btn').addEventListener('click',init);
+</script>
+</body>
+</html>

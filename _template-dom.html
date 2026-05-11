@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAME NAME</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; min-height: 100vh;
+       font-family: system-ui, sans-serif; color: #1a1a2e; padding: 20px; }
+h1 { font-size: 2rem; margin-bottom: 6px; }
+#status { font-size: 1rem; font-weight: 600; margin-bottom: 16px; min-height: 1.5em; color: #444; }
+#board { /* game-specific */ }
+#controls { margin-top: 16px; display: flex; gap: 10px; }
+button { background: #e07b54; color: #fff; border: none; padding: 10px 22px;
+         border-radius: 6px; cursor: pointer; font: inherit; font-weight: 700; }
+button:hover { background: #c5613c; }
+a { color: #888; font-size: 0.85rem; text-decoration: none; margin-top: 12px; }
+a:hover { color: #555; }
+</style>
+</head>
+<body>
+<h1>GAME NAME</h1>
+<div id="status">Ready</div>
+<div id="board"></div>
+<div id="controls">
+  <button id="btn">Start</button>
+</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const statusEl = document.getElementById('status');
+const boardEl = document.getElementById('board');
+const btn = document.getElementById('btn');
+
+let state = 'idle'; // idle | playing | over
+
+function init() {
+  state = 'playing';
+  btn.textContent = 'Restart';
+  // TODO: setup game state
+  render();
+}
+
+function render() {
+  // TODO: update DOM
+}
+
+function endGame(won) {
+  state = 'over';
+  statusEl.textContent = won ? '🎉 You Win!' : '💀 Game Over!';
+  btn.textContent = 'Play Again';
+}
+
+btn.addEventListener('click', init);
+</script>
+</body>
+</html>

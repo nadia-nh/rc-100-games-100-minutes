@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chess Lite (Pawns)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 10px; }
+#board { display: grid; grid-template-columns: repeat(8,56px); border: 2px solid #8B4513; }
+.sq { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; cursor: pointer; user-select: none; position: relative; }
+.sq.light { background: #f0d9b5; }
+.sq.dark  { background: #b58863; }
+.sq.sel   { outline: 3px solid #f90; outline-offset: -3px; }
+.sq.move  { background: rgba(0,200,0,0.35); cursor: pointer; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="ui">
+  <span id="msg">Move your pawns (♟) forward · Reach the other side!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+// Full 8×8 chess with only pawns + kings (simplified rules)
+const boardEl=document.getElementById('board'),msg=document.getElementById('msg'),btn=document.getElementById('btn');
+// pieces: 0=empty, wp=white pawn, bp=black pawn, wk=white king, bk=black king
+let board,sel,moves,turn,state='idle';
+
+function initBoard(){
+  board=Array(8).fill(null).map(()=>Array(8).fill(0));
+  for(let c=0;c<8;c++){board[1][c]='bp';board[6][c]='wp';}
+  board[0][4]='bk';board[7][4]='wk';
+}
+
+function init(){
+  initBoard();sel=null;moves=[];turn='w';state='playing';btn.textContent='Restart';
+  msg.textContent='Your turn (white ♙) · Click a pawn to select';render();
+}
+
+function pawnMoves(r,c,color){
+  const mv=[];const dir=color==='w'?-1:1;const startRow=color==='w'?6:1;
+  if(r+dir>=0&&r+dir<8&&!board[r+dir][c])mv.push([r+dir,c]);
+  if(r===startRow&&!board[r+dir][c]&&!board[r+2*dir][c])mv.push([r+2*dir,c]);
+  for(const dc of[-1,1]){
+    if(c+dc>=0&&c+dc<8&&board[r+dir][c+dc]&&board[r+dir][c+dc][0]!==color)mv.push([r+dir,c+dc]);
+  }
+  return mv;
+}
+
+function kingMoves(r,c,color){
+  const mv=[];
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+    if(!dr&&!dc)continue;const nr=r+dr,nc=c+dc;
+    if(nr<0||nr>7||nc<0||nc>7)continue;
+    if(!board[nr][nc]||board[nr][nc][0]!==color)mv.push([nr,nc]);
+  }
+  return mv;
+}
+
+function getMoves(r,c){
+  const p=board[r][c];if(!p)return[];
+  if(p==='wp'||p==='bp')return pawnMoves(r,c,p[0]);
+  if(p==='wk'||p==='bk')return kingMoves(r,c,p[0]);
+  return[];
+}
+
+function clickSq(r,c){
+  if(state!=='playing')return;
+  const mv=moves.find(m=>m[0]===r&&m[1]===c);
+  if(mv&&sel){
+    // make move
+    board[r][c]=board[sel[0]][sel[1]];board[sel[0]][sel[1]]=0;
+    // promotion
+    if(board[r][c]==='wp'&&r===0)board[r][c]='wk';
+    if(board[r][c]==='bp'&&r===7)board[r][c]='bk';
+    sel=null;moves=[];
+    if(checkWin())return;
+    turn=turn==='w'?'b':'w';
+    msg.textContent=turn==='w'?'Your turn (white)':'AI thinking...';
+    render();
+    if(turn==='b')setTimeout(aiMove,400);
+    return;
+  }
+  const p=board[r][c];
+  if(p&&p[0]===turn){sel=[r,c];moves=getMoves(r,c);}
+  else{sel=null;moves=[];}
+  render();
+}
+
+function checkWin(){
+  // white pawn reached row 0, black pawn reached row 7
+  for(let c=0;c<8;c++){
+    if(board[0][c]==='wp'){endGame('white');return true;}
+    if(board[7][c]==='bp'){endGame('black');return true;}
+  }
+  // no pawns left
+  const wp=board.flat().filter(p=>p==='wp'||p==='wk').length;
+  const bp=board.flat().filter(p=>p==='bp'||p==='bk').length;
+  if(!wp){endGame('black');return true;}
+  if(!bp){endGame('white');return true;}
+  return false;
+}
+
+function aiMove(){
+  // collect all black moves
+  const allMoves=[];
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    if(board[r][c]&&board[r][c][0]==='b'){
+      getMoves(r,c).forEach(m=>allMoves.push({fr:r,fc:c,tr:m[0],tc:m[1]}));
+    }
+  }
+  if(!allMoves.length){endGame('white');return;}
+  // prefer captures and advances
+  allMoves.sort((a,b)=>{
+    const scoreA=(board[a.tr][a.tc]?10:0)+(a.tr);
+    const scoreB=(board[b.tr][b.tc]?10:0)+(b.tr);
+    return scoreB-scoreA;
+  });
+  const mv=allMoves[0];
+  board[mv.tr][mv.tc]=board[mv.fr][mv.fc];board[mv.fr][mv.fc]=0;
+  if(board[mv.tr][mv.tc]==='bp'&&mv.tr===7)board[mv.tr][mv.tc]='bk';
+  if(checkWin())return;
+  turn='w';msg.textContent='Your turn (white)';sel=null;moves=[];render();
+}
+
+function render(){
+  boardEl.innerHTML='';
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    const d=document.createElement('div');
+    const light=(r+c)%2===0;
+    d.className='sq '+(light?'light':'dark');
+    if(sel&&sel[0]===r&&sel[1]===c)d.classList.add('sel');
+    if(moves.some(m=>m[0]===r&&m[1]===c))d.classList.add('move');
+    const p=board[r][c];
+    const glyphs={wp:'♙',bp:'♟',wk:'♔',bk:'♚'};
+    if(p)d.textContent=glyphs[p]||'';
+    d.onclick=()=>clickSq(r,c);
+    boardEl.appendChild(d);
+  }
+}
+
+function endGame(winner){
+  state='over';
+  msg.textContent=winner==='white'?'You win! ♙ reached the end 🎉':'AI wins! ♟ reached the end';
+  render();
+}
+
+btn.addEventListener('click',init);render();
+</script>
+</body>
+</html>

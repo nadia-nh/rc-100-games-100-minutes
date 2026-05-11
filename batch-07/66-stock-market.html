@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stock Market Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+#game { width: 500px; }
+h2 { text-align: center; color: #ffd700; margin-bottom: 8px; font-size: 1rem; }
+#portfolio { background: #0a1a0a; border: 1px solid #2a4a2a; border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 0.85rem; }
+#stocks { display: flex; flex-direction: column; gap: 5px; }
+.stock { background: #0a0a2a; border: 1px solid #2a2a5a; border-radius: 6px; padding: 8px 10px; }
+.stock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.stock-name { font-weight: bold; font-size: 0.9rem; }
+.price { font-size: 1.1rem; font-weight: bold; }
+.up { color: #2ecc71; }
+.down { color: #e74c3c; }
+.flat { color: #aaa; }
+.stock-actions { display: flex; gap: 6px; align-items: center; }
+.stock-actions button { background: #1a3a5a; color: #eee; border: 1px solid #3a6a9a; padding: 3px 10px;
+                        cursor: pointer; font: inherit; border-radius: 3px; font-size: 0.8rem; }
+.stock-actions button.sell { background: #3a1a1a; border-color: #9a3a3a; }
+.stock-actions button:disabled { opacity: 0.4; cursor: default; }
+canvas { width: 100%; height: 40px; display: block; margin-top: 4px; }
+#advance { width: 100%; padding: 10px; background: #2a5a2a; color: #fff; border: none;
+           cursor: pointer; font: inherit; border-radius: 6px; margin-top: 6px; font-size: 0.95rem; }
+#advance:hover { background: #3a7a3a; }
+#ui { display: flex; gap: 14px; font-size: 0.9rem; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="game">
+  <h2>📈 STOCK MARKET LITE</h2>
+  <div id="portfolio"></div>
+  <div id="stocks"></div>
+  <button id="advance">⏩ Next Day</button>
+</div>
+<div id="ui">
+  <span id="msg">Buy low, sell high · Reach $5000 to win!</span>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const STOCK_DEFS=[
+  {name:'TechCo',sym:'TCO',color:'#3498db',vol:0.08,trend:0.01},
+  {name:'OilCorp',sym:'OIL',color:'#e67e22',vol:0.06,trend:-0.005},
+  {name:'BioGen',sym:'BIO',color:'#2ecc71',vol:0.12,trend:0.015},
+  {name:'BankInc',sym:'BNK',color:'#9b59b6',vol:0.04,trend:0.005},
+  {name:'CryptoX',sym:'CRX',color:'#f1c40f',vol:0.18,trend:0.02},
+];
+let cash,stocks,day,state='playing';
+
+function init(){
+  cash=1000;day=1;state='playing';
+  stocks=STOCK_DEFS.map(d=>({...d,price:50+Math.random()*50,owned:0,history:[]}));
+  stocks.forEach(s=>s.history.push(s.price));
+  render();
+}
+
+function nextDay(){
+  if(state!=='playing')return;
+  stocks.forEach(s=>{
+    const change=s.price*(s.trend+(Math.random()-0.5)*s.vol*2);
+    s.price=Math.max(1,s.price+change);
+    s.history.push(s.price);if(s.history.length>30)s.history.shift();
+  });
+  day++;
+  const net=cash+stocks.reduce((sum,s)=>sum+s.owned*s.price,0);
+  if(net>=5000){endGame(true);return;}
+  if(day>60&&net<500){endGame(false);return;}
+  document.getElementById('msg').textContent=`Day ${day} · Net worth: $${Math.floor(net)} · Goal: $5000`;
+  render();
+}
+
+function buy(i,amt){
+  const s=stocks[i],cost=s.price*amt;
+  if(cash<cost)return;
+  cash-=cost;s.owned+=amt;render();
+}
+function sell(i,amt){
+  const s=stocks[i];if(s.owned<amt)return;
+  cash+=s.price*amt;s.owned-=amt;render();
+}
+
+function drawChart(canvas,history,color){
+  const ctx=canvas.getContext('2d');const w=canvas.width,h=canvas.height;
+  ctx.fillStyle='#05050f';ctx.fillRect(0,0,w,h);
+  if(history.length<2)return;
+  const mn=Math.min(...history),mx=Math.max(...history),range=mx-mn||1;
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();
+  history.forEach((v,i)=>{
+    const x=i/(history.length-1)*w,y=h-(v-mn)/range*h*0.8-h*0.1;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });ctx.stroke();
+}
+
+function render(){
+  const net=cash+stocks.reduce((sum,s)=>sum+s.owned*s.price,0);
+  document.getElementById('portfolio').innerHTML=
+    `💵 Cash: <b>$${Math.floor(cash)}</b>  |  Net Worth: <b style="color:#ffd700">$${Math.floor(net)}</b>  |  Day: ${day}/60`;
+  const div=document.getElementById('stocks');div.innerHTML='';
+  stocks.forEach((s,i)=>{
+    const prev=s.history.length>1?s.history[s.history.length-2]:s.price;
+    const pct=((s.price-prev)/prev*100).toFixed(1);
+    const cls=pct>0?'up':pct<0?'down':'flat';
+    const d=document.createElement('div');d.className='stock';
+    d.innerHTML=`<div class="stock-header">
+      <span class="stock-name" style="color:${s.color}">${s.sym} <span style="color:#aaa;font-weight:normal;font-size:0.8rem">${s.name}</span></span>
+      <span class="price ${cls}">$${s.price.toFixed(2)} <span style="font-size:0.8rem">${pct>0?'+':''}${pct}%</span></span>
+    </div>
+    <div class="stock-actions">
+      Owned: ${s.owned}
+      <button onclick="buy(${i},1)" ${cash<s.price?'disabled':''}>Buy 1</button>
+      <button onclick="buy(${i},5)" ${cash<s.price*5?'disabled':''}>Buy 5</button>
+      <button class="sell" onclick="sell(${i},1)" ${s.owned<1?'disabled':''}>Sell 1</button>
+      <button class="sell" onclick="sell(${i},5)" ${s.owned<5?'disabled':''}>Sell 5</button>
+    </div>`;
+    const cv=document.createElement('canvas');cv.width=480;cv.height=40;
+    d.appendChild(cv);div.appendChild(d);
+    drawChart(cv,s.history,s.color);
+  });
+}
+
+function endGame(won){
+  state='over';
+  const net=Math.floor(cash+stocks.reduce((sum,s)=>sum+s.owned*s.price,0));
+  document.getElementById('msg').textContent=won?`You reached $${net}! Wall Street legend! 🎉`:`Day ${day} — Net worth $${net}. Bankrupt!`;
+  document.getElementById('advance').disabled=true;
+}
+
+document.getElementById('advance').addEventListener('click',nextDay);
+init();
+</script>
+</body>
+</html>

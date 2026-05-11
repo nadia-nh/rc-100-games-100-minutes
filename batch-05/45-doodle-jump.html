@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Doodle Jump</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 8px; }
+canvas { border: 2px solid #ccc; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="300" height="500"></canvas>
+<div id="ui">
+  <span id="msg">← → move · Land on platforms!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=300,H=500,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const G=0.35,JUMP=-12,PH=12;
+let state='idle',p,platforms,score,camY,raf,keys={};
+
+function mkPlatforms(){
+  const pls=[{x:W/2-30,y:H-40,w:60,h:PH,type:'normal'}];
+  for(let i=1;i<20;i++){
+    const y=H-40-i*90;const x=Math.random()*(W-70);
+    const type=i>5&&Math.random()<0.2?'moving':i>8&&Math.random()<0.1?'break':'normal';
+    pls.push({x,y,w:60+(Math.random()-0.5)*20,h:PH,type,vx:type==='moving'?1.5*(Math.random()>0.5?1:-1):0,broken:false});
+  }
+  return pls;
+}
+
+function init(){
+  platforms=mkPlatforms();
+  const start=platforms[0];
+  p={x:start.x+start.w/2-12,y:start.y-32,w:24,h:32,vx:0,vy:0};
+  score=0;camY=0;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function update(){
+  if(keys['ArrowLeft']||keys['KeyA'])p.vx=-4;
+  else if(keys['ArrowRight']||keys['KeyD'])p.vx=4;
+  else p.vx*=0.8;
+  p.vy+=G;p.y+=p.vy;p.x=(p.x+p.vx+W)%W;
+
+  // land on platforms (only when falling)
+  if(p.vy>0){
+    for(const pl of platforms){
+      if(pl.broken)continue;
+      if(p.x+p.w>pl.x&&p.x<pl.x+pl.w&&p.y+p.h>=pl.y&&p.y+p.h<=pl.y+PH+p.vy+2){
+        if(pl.type==='break')pl.broken=true;
+        else{p.y=pl.y-p.h;p.vy=JUMP;}
+      }
+    }
+  }
+
+  // scroll
+  if(p.y<camY+200)camY=p.y-200;
+  score=Math.max(score,Math.floor(-camY/10));
+
+  // fall off bottom
+  if(p.y-camY>H+50){endGame();return;}
+
+  // move moving platforms
+  platforms.forEach(pl=>{
+    if(pl.type==='moving'){pl.x+=pl.vx;if(pl.x<0||pl.x+pl.w>W)pl.vx*=-1;}
+  });
+
+  // add more platforms above
+  const topPl=platforms.reduce((a,b)=>a.y<b.y?a:b);
+  if(topPl.y-camY>0){
+    const ny=topPl.y-90;
+    const type=score>300&&Math.random()<0.2?'moving':score>600&&Math.random()<0.1?'break':'normal';
+    platforms.push({x:Math.random()*(W-70),y:ny,w:60,h:PH,type,vx:type==='moving'?1.5*(Math.random()>0.5?1:-1):0,broken:false});
+  }
+  platforms=platforms.filter(pl=>pl.y-camY<H+50);
+  msg.textContent='Height: '+score;
+}
+
+function draw(){
+  ctx.fillStyle='#f5f0e8';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(0,-camY);
+  platforms.forEach(pl=>{
+    if(pl.broken){ctx.fillStyle='#aaa';ctx.fillRect(pl.x,pl.y,pl.w/2-2,PH);ctx.fillRect(pl.x+pl.w/2+2,pl.y,pl.w/2-2,PH);return;}
+    const colors={normal:'#7bc67e',moving:'#f39c12',break:'#e74c3c'};
+    ctx.fillStyle=colors[pl.type]||'#7bc67e';ctx.fillRect(pl.x,pl.y,pl.w,PH);
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(pl.x,pl.y,pl.w,4);
+  });
+  // player (little doodle guy)
+  ctx.fillStyle='#4488cc';ctx.fillRect(p.x,p.y,p.w,p.h);
+  ctx.fillStyle='#fff';ctx.fillRect(p.x+2,p.y+4,8,8);ctx.fillRect(p.x+p.w-10,p.y+4,8,8);
+  ctx.fillStyle='#000';ctx.fillRect(p.x+4,p.y+6,4,4);ctx.fillRect(p.x+p.w-8,p.y+6,4,4);
+  ctx.fillStyle='#e74c3c';ctx.fillRect(p.x+6,p.y+p.h-6,p.w-12,4);// smile
+  ctx.restore();
+  // score overlay
+  ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.fillText('Height: '+score,4,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#333';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('DOODLE JUMP',W/2,H/2-20);ctx.font='12px monospace';
+    ctx.fillText('← → move · Land to bounce',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('TOO LOW!',W/2,H/2-20);ctx.fillStyle='#333';ctx.font='14px monospace';
+  ctx.fillText('Height: '+score,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent='Height: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(['ArrowLeft','ArrowRight','ArrowUp','Space'].includes(e.code))e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Racing Top-Down</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">Arrows steer · Finish 3 laps without crashing!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,T=32,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const TRACK=[
+  "111111111111111",
+  "100000000000001",
+  "101111011111101",
+  "101000010000101",
+  "101011110111101",
+  "101010000101101",
+  "101010111101101",
+  "101010100101101",
+  "101010101101101",
+  "101010101101101",
+  "101010100001101",
+  "101011111111101",
+  "101000000000101",
+  "101111111111101",
+  "111111111111111"
+];
+const roadTiles=new Set();
+for(let y=0;y<15;y++)for(let x=0;x<15;x++)if(TRACK[y][x]==='0')roadTiles.add(`${x},${y}`);
+let keys={},car,lapCount,lapTrigger,state='idle',raf;
+function init(){car={x:80,y:400,angle:-Math.PI/2,speed:0};lapCount=0;lapTrigger=false;state='playing';btn.textContent='Restart';msg.textContent='Race to 3 laps!';cancelAnimationFrame(raf);loop();}
+function tileAt(x,y){const gx=Math.floor(x/T),gy=Math.floor(y/T);return TRACK[gy]&&TRACK[gy][gx];}
+function update(){if(state!=='playing')return;
+  if(keys.ArrowUp){car.speed=Math.min(4,car.speed+0.08);} else if(keys.ArrowDown){car.speed=Math.max(-2,car.speed-0.09);} else {car.speed *= 0.99;}
+  if(keys.ArrowLeft){car.angle -= 0.04;} if(keys.ArrowRight){car.angle += 0.04;}
+  car.x += Math.cos(car.angle)*car.speed; car.y += Math.sin(car.angle)*car.speed;
+  const onRoad = roadTiles.has(`${Math.floor(car.x/T)},${Math.floor(car.y/T)}`);
+  if(!onRoad){endGame(false);return;}
+  const nearStart = car.x>210 && car.x<270 && car.y>420;
+  if(nearStart){ if(!lapTrigger && lapCount>0){ lapCount++; lapTrigger=true; if(lapCount>=3){endGame(true);return;} msg.textContent=`Lap ${lapCount+1}/3`;} }
+  else if(car.y<380){ lapTrigger=false; if(lapCount===0){ lapCount=1; msg.textContent='Lap 1/3'; }}
+  if(lapCount===0) msg.textContent='Pass start line to begin lap 1';
+}
+function draw(){ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  for(let y=0;y<15;y++)for(let x=0;x<15;x++){
+    if(TRACK[y][x]==='1'){ctx.fillStyle='#333';} else {ctx.fillStyle='#555';}
+    ctx.fillRect(x*T,y*T,T,T);
+  }
+  ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(210,420,60,8);
+  ctx.fillStyle='#0f0';ctx.beginPath();ctx.arc(car.x,car.y,10,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(car.x,car.y);
+  ctx.lineTo(car.x+Math.cos(car.angle)*18,car.y+Math.sin(car.angle)*18);ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='10px monospace';ctx.fillText('🏎️',car.x-8,car.y+4);
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.textAlign='left';
+  ctx.fillText(`Lap ${Math.max(1,lapCount)}/3  Speed:${car.speed.toFixed(1)}  ${state==='playing'?'Arrows to drive':'Press Start'}`,4,15);
+  if(state==='idle'){ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#3af';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('RACING TOP-DOWN',W/2,H/2-20);
+    ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.fillText('Arrows steer · Finish 3 laps',W/2,H/2+10);
+  }}
+function endGame(won){state='over';cancelAnimationFrame(raf);ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#0f0':'#f44';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'YOU WIN! 🏁':'CRASHED!',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.fillText(`Laps: ${lapCount===0?0:lapCount} / 3`,W/2,H/2+14);
+  msg.textContent=won?'Race complete!':'You crashed off-track.';
+}
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+window.addEventListener('keydown',e=>keys[e.code]=true);
+window.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

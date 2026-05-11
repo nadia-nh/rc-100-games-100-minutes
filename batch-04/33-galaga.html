@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Galaga Wave</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #000; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #fff; gap: 8px; }
+canvas { border: 1px solid #222; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #222; color: #fff; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="360" height="540"></canvas>
+<div id="ui">
+  <span id="msg">← → move · Space shoot</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=360,H=540,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',player,enemies,bullets,eBullets,score,lives,wave,raf,keys={},cooldown=0;
+const ENEMY_COLORS=['#f00','#f80','#ff0','#0f0','#0ff'];
+
+function spawnWave(){
+  enemies=[];wave++;
+  const cols=8,rows=Math.min(wave+2,5);
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    enemies.push({x:20+c*40,y:30+r*36,w:24,h:18,hp:r<2?1:2,path:0,t:Math.random()*100,alive:true,color:ENEMY_COLORS[r%5]});
+  }
+}
+
+function init(){
+  player={x:W/2-14,y:H-50,w:28,h:20};
+  bullets=[];eBullets=[];score=0;lives=3;wave=0;
+  state='playing';msg.textContent='Score: 0  ❤️❤️❤️';btn.textContent='Restart';
+  spawnWave();cancelAnimationFrame(raf);loop();
+}
+
+function update(){
+  if(keys['ArrowLeft'])player.x=Math.max(0,player.x-5);
+  if(keys['ArrowRight'])player.x=Math.min(W-player.w,player.x+5);
+  if(keys['Space']&&cooldown<=0){bullets.push({x:player.x+player.w/2-2,y:player.y,w:4,h:14});cooldown=14;}
+  if(cooldown>0)cooldown--;
+
+  // move enemies in wave pattern
+  enemies.forEach(e=>{
+    if(!e.alive)return;
+    e.t+=0.03;
+    e.x+=Math.sin(e.t)*1.5+0.5*(wave>1?1:0);
+    if(e.x<0||e.x+e.w>W)e.t+=Math.PI;
+    if(e.y>H)e.y=0;
+  });
+
+  // enemy shoots
+  const alive=enemies.filter(e=>e.alive);
+  if(Math.random()<0.006*alive.length){
+    const shooter=alive[Math.floor(Math.random()*alive.length)];
+    eBullets.push({x:shooter.x+shooter.w/2-2,y:shooter.y+shooter.h,w:4,h:10,vy:4+wave*0.5});
+  }
+
+  bullets.forEach(b=>b.y-=10);
+  eBullets.forEach(b=>b.y+=b.vy);
+  bullets=bullets.filter(b=>b.y>-20);
+  eBullets=eBullets.filter(b=>b.y<H+20);
+
+  // bullet-enemy
+  for(const b of bullets){
+    for(const e of alive){
+      if(b.x<e.x+e.w&&b.x+b.w>e.x&&b.y<e.y+e.h&&b.y+b.h>e.y){
+        e.hp--;b.y=-999;if(e.hp<=0){e.alive=false;score+=10*(enemies.indexOf(e)<10?1:2);}break;
+      }
+    }
+  }
+  msg.textContent='Score: '+score+'  Wave: '+wave+'  '+'❤️'.repeat(lives);
+
+  // enemy bullet hits player
+  for(const b of eBullets){
+    if(b.x<player.x+player.w&&b.x+b.w>player.x&&b.y<player.y+player.h&&b.y+b.h>player.y){
+      lives--;b.y=9999;if(!lives){endGame();return;}
+    }
+  }
+  if(!alive.length)spawnWave();
+}
+
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  // stars
+  ctx.fillStyle='#fff';for(let i=0;i<60;i++)ctx.fillRect((i*97+frame*0.3)%W,(i*71+frame*0.5)%H,1,1);
+  // player ship
+  ctx.fillStyle='#0ff';
+  ctx.beginPath();ctx.moveTo(player.x+player.w/2,player.y);ctx.lineTo(player.x,player.y+player.h);ctx.lineTo(player.x+player.w,player.y+player.h);ctx.closePath();ctx.fill();
+  // enemies
+  enemies.forEach(e=>{
+    if(!e.alive)return;
+    ctx.fillStyle=e.color;
+    ctx.fillRect(e.x,e.y,e.w,e.h);
+    ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(e.x+4,e.y+4,e.w-8,e.h-8);
+  });
+  // bullets
+  ctx.fillStyle='#ff0';bullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+  ctx.fillStyle='#f44';eBullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 26px monospace';ctx.textAlign='center';
+    ctx.fillText('GALAGA',W/2,H/2-20);ctx.font='13px monospace';ctx.fillText('← → move  Space shoot',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+let frame=0;
+function endGame(){state='over';msg.textContent='💀 Score: '+score;}
+function loop(){frame++;update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space'){e.preventDefault();if(state==='idle'||state==='over')init();}});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Type Speed</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d1117; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: 'Courier New', monospace; color: #e6edf3; gap: 20px; padding: 20px; }
+h1 { font-size: 1.8rem; font-family: system-ui; }
+#stats { display: flex; gap: 30px; font-size: 1rem; color: #8b949e; }
+#stats b { color: #58a6ff; }
+#word-display { font-size: 3rem; font-weight: 700; letter-spacing: 4px; color: #f0f6fc;
+                min-height: 72px; display: flex; align-items: center; }
+#word-input { font-size: 1.6rem; padding: 10px 18px; background: #161b22; color: #f0f6fc;
+              border: 2px solid #30363d; border-radius: 8px; width: 320px; text-align: center;
+              outline: none; font-family: inherit; letter-spacing: 2px; }
+#word-input.correct { border-color: #238636; }
+#word-input.wrong { border-color: #da3633; }
+#progress { color: #8b949e; font-size: 0.9rem; }
+#timer-bar { width: 400px; height: 6px; background: #21262d; border-radius: 3px; }
+#timer-fill { height: 100%; background: #58a6ff; border-radius: 3px; transition: width 0.2s; }
+button { background: #238636; color: #fff; border: none; padding: 10px 24px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; display: none; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>⌨️ Type Speed</h1>
+<div id="stats">
+  <span>WPM: <b id="wpm">—</b></span>
+  <span>Accuracy: <b id="acc">—</b></span>
+  <span>Words: <b id="wordcount">0</b>/20</span>
+</div>
+<div id="timer-bar"><div id="timer-fill" style="width:100%"></div></div>
+<div id="word-display">—</div>
+<input id="word-input" type="text" placeholder="start typing…" autocomplete="off" autocorrect="off" spellcheck="false" />
+<button id="restart-btn">Restart</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const WORDS = 'the quick brown fox jumps over lazy dog apple banana cherry dog elephant fish grape house island jungle kite lemon moon night ocean penguin queen river snake tiger umbrella violet window yellow zebra cloud dream earth flame grace honor ivory jewel knife light magic noble ocean plane quiet river stone tower ultra vivid water extra young zeal'.split(' ');
+const TOTAL = 20, TIME = 60;
+let queue = [], idx = 0, correct = 0, attempts = 0, startTime = null, timer = null, running = false;
+
+const wordDisp = document.getElementById('word-display');
+const inputEl = document.getElementById('word-input');
+const wpmEl = document.getElementById('wpm');
+const accEl = document.getElementById('acc');
+const wordcountEl = document.getElementById('wordcount');
+const fill = document.getElementById('timer-fill');
+const restartBtn = document.getElementById('restart-btn');
+
+function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+
+function start() {
+  queue = shuffle(WORDS).slice(0, TOTAL);
+  idx = 0; correct = 0; attempts = 0; startTime = null; running = true;
+  wpmEl.textContent = '—'; accEl.textContent = '—'; wordcountEl.textContent = '0/' + TOTAL;
+  fill.style.width = '100%';
+  restartBtn.style.display = 'none';
+  showWord();
+  inputEl.value = '';
+  inputEl.className = '';
+  inputEl.focus();
+  clearInterval(timer);
+}
+
+function showWord() {
+  if (idx >= TOTAL) { end(); return; }
+  wordDisp.textContent = queue[idx];
+  inputEl.value = '';
+  inputEl.className = '';
+}
+
+function end() {
+  running = false;
+  clearInterval(timer);
+  const mins = (Date.now() - startTime) / 60000;
+  const wpm = Math.round(correct / mins);
+  wpmEl.textContent = wpm;
+  accEl.textContent = Math.round(correct / attempts * 100) + '%';
+  wordDisp.textContent = '🏁 Done!';
+  restartBtn.style.display = '';
+}
+
+inputEl.addEventListener('input', () => {
+  if (!running) return;
+  if (!startTime) {
+    startTime = Date.now();
+    let elapsed = 0;
+    timer = setInterval(() => {
+      elapsed += 200;
+      fill.style.width = (100 - elapsed / (TIME * 1000) * 100) + '%';
+      if (elapsed >= TIME * 1000 && running) end();
+    }, 200);
+  }
+  const val = inputEl.value;
+  const target = queue[idx];
+  if (val.endsWith(' ')) {
+    attempts++;
+    const typed = val.trim();
+    if (typed === target) { correct++; inputEl.className = 'correct'; }
+    else { inputEl.className = 'wrong'; }
+    wordcountEl.textContent = (idx + 1) + '/' + TOTAL;
+    idx++;
+    setTimeout(showWord, 150);
+  } else {
+    inputEl.className = target.startsWith(val) ? 'correct' : 'wrong';
+  }
+  const mins = startTime ? (Date.now() - startTime) / 60000 : 0;
+  if (mins > 0) { wpmEl.textContent = Math.round(correct / mins); accEl.textContent = attempts ? Math.round(correct / attempts * 100) + '%' : '—'; }
+});
+
+restartBtn.addEventListener('click', start);
+start();
+</script>
+</body>
+</html>

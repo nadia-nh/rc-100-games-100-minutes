@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sliding Puzzle</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 12px; }
+#board { display: grid; grid-template-columns: repeat(4,80px); gap: 4px; }
+.tile { width: 80px; height: 80px; background: #4a8ac4; color: #fff; font-size: 1.6rem; font-weight: bold;
+        display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px;
+        transition: background 0.1s; user-select: none; }
+.tile:hover { background: #3a7ab4; }
+.tile.empty { background: #ddd; cursor: default; }
+.tile.solved { background: #2ecc71; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="ui">
+  <span id="msg">Click a tile next to the blank to slide it</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const board=document.getElementById('board'),msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const N=4,GOAL=[...Array(N*N-1).keys()].map(i=>i+1).concat(0);
+let tiles,moves,state='idle';
+
+function isSolvable(arr){
+  let inv=0;
+  for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++)if(arr[i]&&arr[j]&&arr[i]>arr[j])inv++;
+  const blankRow=Math.floor(arr.indexOf(0)/N);
+  return (inv+blankRow)%2===0;
+}
+
+function shuffle(){
+  let arr=[...GOAL];
+  do{for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}}
+  while(!isSolvable(arr)||arr.join()===GOAL.join());
+  return arr;
+}
+
+function init(){
+  tiles=shuffle();moves=0;state='playing';btn.textContent='Shuffle';
+  msg.textContent='Moves: 0';render();
+}
+
+function solved(){return tiles.join()===GOAL.join();}
+
+function click(i){
+  if(state!=='playing')return;
+  const blank=tiles.indexOf(0);
+  const bi=Math.floor(blank/N),bj=blank%N;
+  const ti=Math.floor(i/N),tj=i%N;
+  if((Math.abs(bi-ti)+Math.abs(bj-tj))===1){
+    [tiles[blank],tiles[i]]=[tiles[i],tiles[blank]];
+    moves++;
+    if(solved()){state='over';msg.textContent=`Solved in ${moves} moves! 🎉`;}
+    else msg.textContent=`Moves: ${moves}`;
+    render();
+  }
+}
+
+function render(){
+  board.innerHTML='';
+  tiles.forEach((v,i)=>{
+    const d=document.createElement('div');
+    d.className='tile'+(v===0?' empty':solved()?' solved':'');
+    d.textContent=v||'';
+    d.onclick=()=>click(i);
+    board.appendChild(d);
+  });
+}
+
+btn.addEventListener('click',init);
+render();msg.textContent='Press Start to shuffle!';
+</script>
+</body>
+</html>

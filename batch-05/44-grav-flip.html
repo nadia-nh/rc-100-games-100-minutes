@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gravity Flip</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; cursor: pointer; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="600" height="240"></canvas>
+<div id="ui">
+  <span id="msg">Space or Click to flip gravity!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=600,H=240,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const PLAYER_SPD=3,G=0.6;
+let state='idle',p,obstacles,score,speed,grav,raf,bgX=0;
+
+function init(){
+  p={x:80,y:H/2,w:24,h:24,vy:0};
+  obstacles=[];score=0;speed=3;grav=1;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function flip(){
+  if(state==='idle'||state==='over'){init();return;}
+  grav*=-1;
+}
+
+function spawnObs(){
+  const type=Math.random();
+  if(type<0.5){obstacles.push({x:W,y:H-40,w:24,h:40,spikes:false});} // floor bump
+  else if(type<0.8){obstacles.push({x:W,y:0,w:24,h:40,spikes:false});} // ceiling bump
+  else{obstacles.push({x:W,y:H-80,w:24,h:80,spikes:false,gap:true,gapY:H-80+Math.random()*(80-40),gapH:40});}
+}
+
+function update(){
+  p.vy+=G*grav;p.vy=Math.max(-14,Math.min(14,p.vy));p.y+=p.vy;
+  if(p.y<=0){p.y=0;p.vy=0;}
+  if(p.y+p.h>=H){p.y=H-p.h;p.vy=0;}
+  // obstacles
+  if(Math.random()<0.014)spawnObs();
+  obstacles.forEach(o=>o.x-=speed);
+  obstacles=obstacles.filter(o=>o.x+o.w>0);
+  score++;speed=3+score/600;
+  for(const o of obstacles){
+    if(p.x+p.w-4>o.x&&p.x+4<o.x+o.w){
+      if(o.gap){if(!(p.y+4>o.gapY&&p.y+p.h-4<o.gapY+o.gapH)){endGame();return;}}
+      else if(p.y+p.h-4>o.y&&p.y+4<o.y+o.h){endGame();return;}
+    }
+  }
+  // spikes top and bottom
+  if(p.y<=2||p.y+p.h>=H-2){}// handled above
+  msg.textContent=`Score: ${score}  Gravity: ${grav>0?'⬇ DOWN':'⬆ UP'}`;
+}
+
+function draw(){
+  const bg=grav>0?'#0a1a2a':'#1a0a2a';
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  // bg stripes
+  bgX=(bgX-1+W)%W;
+  ctx.fillStyle='rgba(255,255,255,0.02)';
+  for(let x=bgX;x<W;x+=40)ctx.fillRect(x,0,20,H);
+  // floor/ceiling
+  ctx.fillStyle='#f55';ctx.fillRect(0,0,W,4);ctx.fillRect(0,H-4,W,4);
+  // spike decorations
+  ctx.fillStyle='rgba(255,100,100,0.2)';
+  for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+10,10);ctx.lineTo(x+20,0);ctx.fill();}
+  for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,H);ctx.lineTo(x+10,H-10);ctx.lineTo(x+20,H);ctx.fill();}
+  // obstacles
+  ctx.fillStyle='#f80';
+  obstacles.forEach(o=>{
+    if(o.gap){
+      ctx.fillRect(o.x,0,o.w,o.gapY);ctx.fillRect(o.x,o.gapY+o.gapH,o.w,H-o.gapY-o.gapH);
+    } else ctx.fillRect(o.x,o.y,o.w,o.h);
+  });
+  // player
+  ctx.fillStyle='#3af';
+  ctx.save();ctx.translate(p.x+p.w/2,p.y+p.h/2);if(grav<0)ctx.scale(1,-1);
+  ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+  ctx.fillStyle='#fff';ctx.fillRect(-8,-6,6,6);ctx.fillRect(2,-6,6,6);
+  ctx.restore();
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('GRAVITY FLIP',W/2,H/2-16);ctx.font='13px monospace';
+    ctx.fillText('Space/Click to flip gravity! Avoid walls!',W/2,H/2+12);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 24px monospace';ctx.textAlign='center';
+  ctx.fillText('SPLAT!',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='16px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent='Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();flip();}});
+canvas.addEventListener('click',flip);
+btn.addEventListener('click',()=>{if(state==='idle'||state==='over')init();});
+draw();
+</script>
+</body>
+</html>

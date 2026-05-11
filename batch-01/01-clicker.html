@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cookie Clicker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a0a00; min-height: 100vh; display: flex; font-family: system-ui, sans-serif;
+       color: #f0d0a0; align-items: flex-start; justify-content: center; padding: 30px 20px; gap: 40px; }
+#left { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 220px; }
+h1 { font-size: 1.6rem; }
+#count { font-size: 1.3rem; }
+#cps { font-size: 0.9rem; color: #a08060; }
+#cookie { font-size: 100px; cursor: pointer; user-select: none; transition: transform 0.07s; line-height: 1; }
+#cookie:active { transform: scale(0.92); }
+#right { min-width: 260px; }
+#right h2 { font-size: 1rem; margin-bottom: 10px; color: #c0a070; }
+.upgrade { background: #2a1500; border: 1px solid #5a3010; border-radius: 6px; padding: 10px 14px;
+           margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.upgrade:hover { background: #3a2000; }
+.upgrade.disabled { opacity: 0.4; cursor: default; }
+.uname { font-weight: 700; font-size: 0.9rem; }
+.udesc { font-size: 0.75rem; color: #a08060; }
+.ucost { font-size: 0.85rem; white-space: nowrap; color: #f0c060; }
+a { color: #888; font-size: 0.8rem; text-decoration: none; display: block; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div id="left">
+  <h1>🍪 Cookie Clicker</h1>
+  <div id="count">0 cookies</div>
+  <div id="cps">0 per second</div>
+  <div id="cookie">🍪</div>
+  <a href="../index.html">↩ Gallery</a>
+</div>
+<div id="right">
+  <h2>Upgrades</h2>
+  <div id="shop"></div>
+</div>
+<script>
+let cookies = 0, cps = 0;
+const upgrades = [
+  { name:'Grandma', desc:'+1/s', cost:15, cpsAdd:1, count:0 },
+  { name:'Farm', desc:'+5/s', cost:100, cpsAdd:5, count:0 },
+  { name:'Factory', desc:'+20/s', cost:500, cpsAdd:20, count:0 },
+  { name:'Mine', desc:'+80/s', cost:2000, cpsAdd:80, count:0 },
+  { name:'Shipment', desc:'+300/s', cost:8000, cpsAdd:300, count:0 },
+];
+const countEl = document.getElementById('count');
+const cpsEl = document.getElementById('cps');
+const shop = document.getElementById('shop');
+
+function fmt(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : Math.floor(n)+''; }
+
+function renderShop() {
+  shop.innerHTML = '';
+  upgrades.forEach((u, i) => {
+    const div = document.createElement('div');
+    div.className = 'upgrade' + (cookies < u.cost ? ' disabled' : '');
+    div.innerHTML = `<div><div class="uname">${u.name} <small style="color:#a08060">(${u.count})</small></div><div class="udesc">${u.desc}</div></div><div class="ucost">${fmt(u.cost)} 🍪</div>`;
+    div.addEventListener('click', () => {
+      if (cookies < u.cost) return;
+      cookies -= u.cost;
+      cps += u.cpsAdd;
+      u.count++;
+      u.cost = Math.ceil(u.cost * 1.15);
+      update();
+    });
+    shop.appendChild(div);
+  });
+}
+
+function update() {
+  countEl.textContent = fmt(cookies) + ' cookies';
+  cpsEl.textContent = fmt(cps) + ' per second';
+  renderShop();
+}
+
+document.getElementById('cookie').addEventListener('click', () => { cookies += 1 + Math.floor(cps * 0.1); update(); });
+
+setInterval(() => { if (cps > 0) { cookies += cps / 20; update(); } }, 50);
+update();
+</script>
+</body>
+</html>

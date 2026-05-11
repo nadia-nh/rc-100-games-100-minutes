@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bullet Hell</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0010; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #fff; gap: 8px; }
+canvas { border: 1px solid #330055; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #220033; color: #fff; border: 1px solid #660088; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #553377; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="400" height="520"></canvas>
+<div id="ui">
+  <span id="msg">Mouse to dodge · Survive the boss</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=400,H=520,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',player,boss,bullets,score,phase,phaseTimer,raf,mx=W/2,my=H-60;
+
+canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;});
+
+function init(){
+  player={x:W/2,y:H-60,r:7,invincible:0,hp:5};
+  boss={x:W/2,y:80,r:40,hp:200,maxHp:200};
+  bullets=[];score=0;phase=0;phaseTimer=0;
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+const TAU=Math.PI*2;
+let frame=0;
+
+function fireBullets(){
+  phaseTimer++;
+  const p=phase%4;
+  // Pattern based on phase
+  if(p===0){ // ring
+    if(phaseTimer%40===0){const n=12+phase*2;for(let i=0;i<n;i++){const a=i/n*TAU+frame*0.01;bullets.push({x:boss.x,y:boss.y,vx:Math.cos(a)*3,vy:Math.sin(a)*3,r:5,color:'#f0f'});}}
+  } else if(p===1){ // spiral
+    if(phaseTimer%4===0){const a=phaseTimer*0.2;for(let k=0;k<3;k++){const aa=a+k*TAU/3;bullets.push({x:boss.x,y:boss.y,vx:Math.cos(aa)*4,vy:Math.sin(aa)*4,r:5,color:'#0ff'});}}
+  } else if(p===2){ // aimed bursts
+    if(phaseTimer%30===0){const dx=player.x-boss.x,dy=player.y-boss.y,d=Math.hypot(dx,dy);for(let k=-2;k<=2;k++){const a=Math.atan2(dy,dx)+k*0.15;bullets.push({x:boss.x,y:boss.y,vx:Math.cos(a)*5,vy:Math.sin(a)*5,r:5,color:'#ff0'});}}
+  } else { // fast ring + aimed
+    if(phaseTimer%20===0){const n=8;for(let i=0;i<n;i++){const a=i/n*TAU;bullets.push({x:boss.x,y:boss.y,vx:Math.cos(a)*5,vy:Math.sin(a)*5,r:4,color:'#f80'});}}
+    if(phaseTimer%60===0){const dx=player.x-boss.x,dy=player.y-boss.y,d=Math.hypot(dx,dy);bullets.push({x:boss.x,y:boss.y,vx:dx/d*8,vy:dy/d*8,r:7,color:'#f00'});}
+  }
+  if(phaseTimer>300){phase++;phaseTimer=0;}
+}
+
+function update(){
+  player.x+=(mx-player.x)*0.2;player.y+=(my-player.y)*0.2;
+  player.x=Math.max(player.r,Math.min(W-player.r,player.x));
+  player.y=Math.max(player.r,Math.min(H-player.r,player.y));
+  if(player.invincible>0)player.invincible--;
+
+  fireBullets();
+  score++;
+  // boss moves
+  boss.x=W/2+Math.sin(frame*0.02)*120;
+  boss.y=80+Math.sin(frame*0.015)*30;
+
+  bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;});
+  bullets=bullets.filter(b=>b.x>-20&&b.x<W+20&&b.y>-20&&b.y<H+20);
+
+  // check collision player-bullet
+  if(player.invincible<=0){
+    for(const b of bullets){
+      if(Math.hypot(b.x-player.x,b.y-player.y)<b.r+player.r-2){
+        player.hp--;player.invincible=60;b.r=0;
+        if(player.hp<=0){endGame();return;}
+        break;
+      }
+    }
+  }
+  bullets=bullets.filter(b=>b.r>0);
+
+  // player shoots boss automatically
+  if(frame%20===0)boss.hp--;
+  if(boss.hp<=0){state='over';msg.textContent='🎉 Boss defeated! Score: '+score;return;}
+
+  msg.textContent=`HP: ${'█'.repeat(player.hp)}  Boss: ${boss.hp}  Phase: ${(phase%4)+1}`;
+}
+
+function draw(){
+  ctx.fillStyle='#0a0010';ctx.fillRect(0,0,W,H);
+  // stars
+  ctx.fillStyle='rgba(255,255,255,0.5)';for(let i=0;i<50;i++)ctx.fillRect((i*137+frame)%W,(i*71+frame*0.5)%H,1,1);
+  // boss
+  const bc=`hsl(${frame*2%360},100%,50%)`;
+  ctx.fillStyle=bc;ctx.beginPath();ctx.arc(boss.x,boss.y,boss.r,0,TAU);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.4)';ctx.beginPath();ctx.arc(boss.x,boss.y,boss.r-10,0,TAU);ctx.fill();
+  // boss hp bar
+  ctx.fillStyle='#300';ctx.fillRect(20,10,W-40,14);
+  ctx.fillStyle='#f00';ctx.fillRect(20,10,(W-40)*(boss.hp/boss.maxHp),14);
+  ctx.fillStyle='#fff';ctx.font='10px monospace';ctx.textAlign='center';ctx.fillText('BOSS',W/2,21);ctx.textAlign='left';
+  // bullets
+  bullets.forEach(b=>{ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);ctx.fill();});
+  // player
+  if(player.invincible%8<4){
+    ctx.fillStyle='#7df';ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,TAU);ctx.fill();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(player.x,player.y,3,0,TAU);ctx.fill();
+  }
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#f0f';ctx.font='bold 24px monospace';ctx.textAlign='center';
+    ctx.fillText('BULLET HELL',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='13px monospace';
+    ctx.fillText('Move mouse to dodge',W/2,H/2+14);ctx.textAlign='left';
+  }
+  if(state==='over'&&boss.hp<=0){
+    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#0f0';ctx.font='bold 24px monospace';ctx.textAlign='center';
+    ctx.fillText('BOSS DEFEATED!',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='16px monospace';
+    ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#f00';ctx.font='bold 24px monospace';ctx.textAlign='center';
+  ctx.fillText('YOU DIED',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText('Survived '+score+' frames',W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent='💀 Survived '+score+' frames';
+}
+
+function loop(){frame++;update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+btn.addEventListener('click',()=>{if(state==='idle'||state==='over')init();});
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spin the Wheel</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a0a2e; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 12px; }
+canvas { cursor: pointer; }
+#result { font-size: 1.4rem; font-weight: bold; min-height: 2rem; text-align: center; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #4a2a8a; color: #eee; border: 1px solid #7a4aaa; padding: 8px 20px; cursor: pointer; font: inherit; border-radius: 4px; font-size: 1rem; }
+button:hover { background: #6a3aaa; }
+button:disabled { background: #333; border-color: #555; cursor: default; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="400" height="400"></canvas>
+<div id="result">Click to spin!</div>
+<div id="ui">
+  <span id="msg">Spin to win! Jackpot = 7× · Lucky = 3× · Bonus = 2×</span>
+  <button id="spin-btn">🎰 Spin! (10 chips)</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=400,H=400,CX=W/2,CY=H/2,R=170;
+
+const SEGMENTS=[
+  {label:'💀 Lose All',color:'#c0392b',mult:0},
+  {label:'⭐ Bonus ×2',color:'#f39c12',mult:2},
+  {label:'💰 ×1.5',color:'#27ae60',mult:1.5},
+  {label:'🎰 Jackpot ×7',color:'#8e44ad',mult:7},
+  {label:'❌ Nothing',color:'#7f8c8d',mult:1},
+  {label:'🍀 Lucky ×3',color:'#2980b9',mult:3},
+  {label:'💰 ×1.5',color:'#27ae60',mult:1.5},
+  {label:'❌ Nothing',color:'#7f8c8d',mult:1},
+  {label:'⭐ Bonus ×2',color:'#f39c12',mult:2},
+  {label:'💀 Lose All',color:'#c0392b',mult:0},
+  {label:'🎰 Jackpot ×7',color:'#8e44ad',mult:7},
+  {label:'💰 ×1.5',color:'#27ae60',mult:1.5},
+];
+
+const N=SEGMENTS.length,SLICE=2*Math.PI/N;
+let angle=0,vel=0,spinning=false,chips=100,bet=10;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // wheel
+  SEGMENTS.forEach((s,i)=>{
+    const a=angle+i*SLICE;
+    ctx.beginPath();ctx.moveTo(CX,CY);ctx.arc(CX,CY,R,a,a+SLICE);ctx.closePath();
+    ctx.fillStyle=s.color;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.stroke();
+    // label
+    ctx.save();ctx.translate(CX,CY);ctx.rotate(a+SLICE/2);
+    ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='right';
+    ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowBlur=3;
+    ctx.fillText(s.label,R-10,4);ctx.restore();
+  });
+  // center hub
+  ctx.fillStyle='#1a0a2e';ctx.beginPath();ctx.arc(CX,CY,24,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#ffd700';ctx.lineWidth=3;ctx.stroke();
+  ctx.fillStyle='#ffd700';ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.fillText('🎡',CX,CY+5);
+  // pointer
+  ctx.fillStyle='#ffd700';ctx.beginPath();
+  ctx.moveTo(CX+R+16,CY);ctx.lineTo(CX+R-10,CY-10);ctx.lineTo(CX+R-10,CY+10);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#c0a000';ctx.lineWidth=1;ctx.stroke();
+  // chips
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#ffd700';ctx.font='13px monospace';ctx.textAlign='left';
+  ctx.fillText(`💰 Chips: ${chips}  Bet: ${bet}`,6,15);
+}
+
+function spinResult(){
+  // pointer at right (angle=0 → segment 0 is at top). Normalize to pointer at right side
+  const ptr=(-angle%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+  const si=Math.floor(ptr/SLICE)%N;
+  const s=SEGMENTS[si];
+  let won=0;
+  if(s.mult===0){won=-chips;chips=0;}
+  else{won=Math.floor(bet*s.mult)-bet;chips+=won;}
+  document.getElementById('result').textContent=`${s.label} → ${won>=0?'+':''}${won} chips!`;
+  document.getElementById('result').style.color=won>0?'#2ecc71':won<0?'#e74c3c':'#aaa';
+  document.getElementById('spin-btn').disabled=chips<bet;
+  if(chips<=0){document.getElementById('msg').textContent='Out of chips! Refresh to restart.';}
+}
+
+function spin(){
+  if(spinning||chips<bet)return;
+  chips-=bet;
+  vel=0.18+Math.random()*0.14;
+  spinning=true;
+  document.getElementById('spin-btn').disabled=true;
+  document.getElementById('result').textContent='Spinning...';
+  document.getElementById('result').style.color='#eee';
+  requestAnimationFrame(animate);
+}
+
+function animate(){
+  if(vel>0.001){
+    angle+=vel;vel*=0.985;
+    draw();requestAnimationFrame(animate);
+  } else {vel=0;spinning=false;spinResult();draw();document.getElementById('spin-btn').disabled=chips<bet;}
+}
+
+canvas.addEventListener('click',spin);
+document.getElementById('spin-btn').addEventListener('click',spin);
+draw();document.getElementById('result').textContent='Click wheel or button to spin!';
+</script>
+</body>
+</html>

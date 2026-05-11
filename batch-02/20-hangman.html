@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hangman</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #1a1a2e; gap: 14px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#gallows { width: 160px; height: 180px; }
+#word-display { font-size: 2.2rem; font-weight: 900; letter-spacing: 10px; font-family: monospace; min-height: 52px; }
+#category { color: #888; font-size: 0.85rem; }
+#wrong { color: #e74c3c; font-size: 0.9rem; min-height: 1.2em; }
+#keyboard { display: flex; flex-wrap: wrap; gap: 5px; max-width: 360px; justify-content: center; }
+.key { width: 36px; height: 36px; border-radius: 6px; border: none; background: #1a1a2e; color: #fff;
+       font: inherit; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
+.key:disabled { background: #ccc; color: #999; cursor: default; }
+.key.wrong-key { background: #e74c3c; }
+.key.right-key { background: #27ae60; }
+#status { font-size: 1rem; min-height: 1.4em; font-weight: 700; }
+button#btn { background: #e07b54; color: #fff; border: none; padding: 10px 24px;
+             border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>🪢 Hangman</h1>
+<svg id="gallows" viewBox="0 0 160 180">
+  <line x1="20" y1="170" x2="140" y2="170" stroke="#555" stroke-width="4"/>
+  <line x1="60" y1="170" x2="60" y2="20" stroke="#555" stroke-width="4"/>
+  <line x1="60" y1="20" x2="110" y2="20" stroke="#555" stroke-width="4"/>
+  <line x1="110" y1="20" x2="110" y2="40" stroke="#555" stroke-width="4"/>
+  <g id="parts">
+    <circle id="p0" cx="110" cy="53" r="13" fill="none" stroke="#e74c3c" stroke-width="3" style="display:none"/>
+    <line id="p1" x1="110" y1="66" x2="110" y2="110" stroke="#e74c3c" stroke-width="3" style="display:none"/>
+    <line id="p2" x1="110" y1="75" x2="88" y2="95" stroke="#e74c3c" stroke-width="3" style="display:none"/>
+    <line id="p3" x1="110" y1="75" x2="132" y2="95" stroke="#e74c3c" stroke-width="3" style="display:none"/>
+    <line id="p4" x1="110" y1="110" x2="90" y2="138" stroke="#e74c3c" stroke-width="3" style="display:none"/>
+    <line id="p5" x1="110" y1="110" x2="130" y2="138" stroke="#e74c3c" stroke-width="3" style="display:none"/>
+  </g>
+</svg>
+<div id="category">Category: —</div>
+<div id="word-display">—</div>
+<div id="wrong">Wrong: —</div>
+<div id="keyboard"></div>
+<div id="status">Press New Game!</div>
+<button id="btn">New Game</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const WORDS = [
+  {w:'JAVASCRIPT',c:'Programming'},
+  {w:'ELEPHANT',c:'Animal'},
+  {w:'PYRAMIDS',c:'Landmark'},
+  {w:'ASTRONOMY',c:'Science'},
+  {w:'CHOCOLATE',c:'Food'},
+  {w:'HURRICANE',c:'Weather'},
+  {w:'SUBMARINE',c:'Vehicle'},
+  {w:'FIBONACCI',c:'Math'},
+  {w:'ORCHESTRA',c:'Music'},
+  {w:'DEMOCRACY',c:'Politics'},
+  {w:'PENGUIN',c:'Animal'},
+  {w:'VOLCANO',c:'Geography'},
+  {w:'LABYRINTH',c:'Word'},
+  {w:'QUANTUM',c:'Physics'},
+  {w:'SAPPHIRE',c:'Gemstone'},
+];
+const parts = Array.from({length:6},(_,i)=>document.getElementById('p'+i));
+const keyboardEl = document.getElementById('keyboard');
+const wordEl = document.getElementById('word-display');
+const catEl = document.getElementById('category');
+const wrongEl = document.getElementById('wrong');
+const statusEl = document.getElementById('status');
+let word, guessed, wrongGuesses;
+
+function newGame() {
+  const entry = WORDS[Math.floor(Math.random()*WORDS.length)];
+  word = entry.w; guessed = new Set(); wrongGuesses = [];
+  catEl.textContent = 'Category: ' + entry.c;
+  statusEl.textContent = '';
+  parts.forEach(p => p.style.display = 'none');
+  renderWord(); renderKeys();
+  wrongEl.textContent = 'Wrong: —';
+}
+
+function renderWord() {
+  wordEl.textContent = word.split('').map(c => guessed.has(c) ? c : '_').join(' ');
+}
+
+function renderKeys() {
+  keyboardEl.innerHTML = '';
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l => {
+    const btn = document.createElement('button');
+    btn.className = 'key';
+    btn.textContent = l;
+    if (guessed.has(l)) {
+      btn.disabled = true;
+      btn.classList.add(word.includes(l) ? 'right-key' : 'wrong-key');
+    }
+    btn.addEventListener('click', () => guess(l));
+    keyboardEl.appendChild(btn);
+  });
+}
+
+function guess(l) {
+  if (guessed.has(l)) return;
+  guessed.add(l);
+  if (!word.includes(l)) {
+    wrongGuesses.push(l);
+    parts[wrongGuesses.length-1].style.display = '';
+    wrongEl.textContent = 'Wrong: ' + wrongGuesses.join(' ') + ` (${wrongGuesses.length}/6)`;
+    if (wrongGuesses.length >= 6) { statusEl.textContent = `💀 The word was ${word}`; renderKeys(); return; }
+  }
+  renderWord(); renderKeys();
+  if (word.split('').every(c => guessed.has(c))) statusEl.textContent = '🎉 You got it!';
+}
+
+document.addEventListener('keydown', e => { const l = e.key.toUpperCase(); if (/^[A-Z]$/.test(l)) guess(l); });
+document.getElementById('btn').addEventListener('click', newGame);
+newGame();
+</script>
+</body>
+</html>

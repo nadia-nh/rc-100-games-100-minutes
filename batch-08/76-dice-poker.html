@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dice Poker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a2a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 12px; }
+#dice { display: flex; gap: 10px; }
+.die { width: 70px; height: 70px; background: #fff; border-radius: 10px; display: flex; align-items: center;
+       justify-content: center; font-size: 2.5rem; cursor: pointer; border: 3px solid #888;
+       user-select: none; transition: border-color 0.1s, transform 0.1s; }
+.die.held { border-color: #ffd700; transform: translateY(-8px); background: #fffbe6; }
+.die:hover { border-color: #aaa; }
+#hand-name { font-size: 1.3rem; font-weight: bold; color: #ffd700; min-height: 2rem; text-align: center; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #2a5a2a; color: #fff; border: 1px solid #4a8a4a; padding: 8px 20px;
+         cursor: pointer; font: inherit; border-radius: 4px; font-size: 1rem; }
+button:disabled { background: #333; border-color: #555; color: #666; cursor: default; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+#chips { font-size: 1rem; color: #ffd700; }
+</style>
+</head>
+<body>
+<div id="chips">Chips: 100</div>
+<div id="dice"></div>
+<div id="hand-name">Press Start to play!</div>
+<div id="ui">
+  <span id="msg">Click dice to hold · Roll up to 3 times</span>
+  <button id="roll-btn" disabled>Roll (3 left)</button>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const FACES=['','⚀','⚁','⚂','⚃','⚄','⚅'];
+const HANDS=[
+  {name:'Five of a Kind',pay:200,check:d=>counts(d).includes(5)},
+  {name:'Four of a Kind',pay:50,check:d=>counts(d).includes(4)},
+  {name:'Full House',pay:25,check:d=>{const c=counts(d).sort();return c[0]===2&&c[1]===3;}},
+  {name:'Straight',pay:20,check:d=>{const s=new Set(d);return s.size===5&&Math.max(...d)-Math.min(...d)===4;}},
+  {name:'Three of a Kind',pay:10,check:d=>counts(d).includes(3)},
+  {name:'Two Pair',pay:5,check:d=>counts(d).filter(v=>v===2).length===2},
+  {name:'One Pair',pay:2,check:d=>counts(d).includes(2)},
+];
+
+function counts(d){const m={};d.forEach(v=>m[v]=(m[v]||0)+1);return Object.values(m);}
+
+let dice,held,rolls,chips,state='idle';
+
+function roll(){
+  dice=dice.map((v,i)=>held[i]?v:Math.ceil(Math.random()*6));
+  rolls--;
+  renderDice();
+  document.getElementById('roll-btn').textContent=`Roll (${rolls} left)`;
+  document.getElementById('roll-btn').disabled=rolls<=0;
+  const hand=evaluate();
+  document.getElementById('hand-name').textContent=hand?hand.name:'No hand yet';
+  if(rolls<=0)endRound();
+}
+
+function evaluate(){return HANDS.find(h=>h.check(dice));}
+
+function endRound(){
+  document.getElementById('roll-btn').disabled=true;
+  const hand=evaluate();
+  if(hand){chips+=hand.pay;document.getElementById('hand-name').textContent=`${hand.name} · +${hand.pay} chips! 🎉`;}
+  else{chips-=5;document.getElementById('hand-name').textContent='No hand · -5 chips';}
+  document.getElementById('chips').textContent=`Chips: ${chips}`;
+  if(chips<=0){document.getElementById('msg').textContent='Out of chips! Press Start to restart.';state='over';return;}
+  document.getElementById('msg').textContent='Click Start for next round!';
+  state='between';
+}
+
+function startRound(){
+  dice=[0,0,0,0,0];held=[false,false,false,false,false];rolls=3;
+  dice=dice.map(()=>Math.ceil(Math.random()*6));rolls=2;
+  state='playing';
+  document.getElementById('roll-btn').disabled=false;
+  document.getElementById('roll-btn').textContent='Roll (2 left)';
+  document.getElementById('hand-name').textContent='Click dice to hold, then roll!';
+  document.getElementById('msg').textContent='Click dice to hold · Roll up to 3 times';
+  renderDice();
+}
+
+function renderDice(){
+  const div=document.getElementById('dice');div.innerHTML='';
+  dice.forEach((v,i)=>{
+    const d=document.createElement('div');d.className='die'+(held[i]?' held':'');
+    d.textContent=FACES[v];d.title=held[i]?'Held (click to release)':'Click to hold';
+    d.onclick=()=>{if(state==='playing'){held[i]=!held[i];renderDice();}};
+    div.appendChild(d);
+  });
+}
+
+function init(){
+  chips=100;dice=[1,1,1,1,1];held=[false,false,false,false,false];state='playing';
+  document.getElementById('btn').textContent='New Game';
+  document.getElementById('chips').textContent='Chips: 100';
+  startRound();
+}
+
+document.getElementById('roll-btn').addEventListener('click',()=>{if(state==='playing')roll();});
+document.getElementById('btn').addEventListener('click',()=>{
+  if(state==='idle'||state==='over')init();else if(state==='between')startRound();
+});
+renderDice();
+</script>
+</body>
+</html>

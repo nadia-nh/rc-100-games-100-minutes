@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nonogram Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #1a1a2e; gap: 16px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#puzzle-name { font-size: 1rem; color: #888; font-style: italic; }
+#nonogram { display: inline-block; }
+table { border-collapse: collapse; }
+.clue-cell { font-size: 0.8rem; font-weight: 700; padding: 2px 5px; color: #444; min-width: 24px; text-align: center; }
+.grid-cell { width: 36px; height: 36px; border: 1px solid #bbb; cursor: pointer;
+             background: #fff; transition: background 0.1s; }
+.grid-cell.filled { background: #1a1a2e; }
+.grid-cell.marked { background: #fff; position: relative; }
+.grid-cell.marked::after { content: '✕'; color: #e74c3c; font-size: 1rem; position: absolute;
+                            top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.grid-cell.correct.filled { background: #27ae60; }
+.grid-cell.wrong.filled   { background: #e74c3c; }
+#status { font-size: 1rem; font-weight: 700; min-height: 1.4em; }
+#controls { display: flex; gap: 10px; }
+button { background: #e07b54; color: #fff; border: none; padding: 10px 20px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+#mode { background: #555; }
+#legend { font-size: 0.8rem; color: #888; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>◼ Nonogram</h1>
+<div id="puzzle-name"></div>
+<div id="nonogram"></div>
+<div id="legend">Left-click: fill | Right-click: mark X</div>
+<div id="status"></div>
+<div id="controls">
+  <button id="check-btn">Check</button>
+  <button id="clear-btn">Clear</button>
+  <button id="next-btn">Next Puzzle</button>
+</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const PUZZLES = [
+  { name:'Heart', size:5, sol:[[0,1,1,0,0],[1,1,1,1,0],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]] },
+  { name:'Arrow', size:5, sol:[[0,0,1,0,0],[0,1,1,0,0],[1,1,1,1,1],[0,1,1,0,0],[0,0,1,0,0]] },
+  { name:'Checkers', size:5, sol:[[1,0,1,0,1],[0,1,0,1,0],[1,0,1,0,1],[0,1,0,1,0],[1,0,1,0,1]] },
+  { name:'Letter X', size:5, sol:[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1]] },
+  { name:'House', size:5, sol:[[0,0,1,0,0],[0,1,1,1,0],[1,1,1,1,1],[1,0,1,0,1],[1,0,1,0,1]] },
+];
+
+function getClues(lines) {
+  return lines.map(line => {
+    const clues = []; let cnt = 0;
+    for (const v of line) { if (v) cnt++; else if (cnt) { clues.push(cnt); cnt = 0; } }
+    if (cnt) clues.push(cnt);
+    return clues.length ? clues : [0];
+  });
+}
+
+let pidx = 0, state = [], puzzle;
+const nonogramEl = document.getElementById('nonogram');
+const statusEl = document.getElementById('status');
+const nameEl = document.getElementById('puzzle-name');
+
+function loadPuzzle() {
+  puzzle = PUZZLES[pidx % PUZZLES.length];
+  const N = puzzle.size;
+  state = Array(N).fill(null).map(() => Array(N).fill(0));
+  nameEl.textContent = puzzle.name;
+  statusEl.textContent = '';
+  const rowClues = getClues(puzzle.sol);
+  const colClues = getClues(puzzle.sol[0].map((_,c)=>puzzle.sol.map(r=>r[c])));
+  // Build table
+  const table = document.createElement('table');
+  // Header row (col clues)
+  const maxColClues = Math.max(...colClues.map(c=>c.length));
+  for (let k = 0; k < maxColClues; k++) {
+    const tr = document.createElement('tr');
+    const spacer = document.createElement('td'); spacer.colSpan = Math.max(...rowClues.map(r=>r.length));
+    tr.appendChild(spacer);
+    for (let c = 0; c < N; c++) {
+      const td = document.createElement('td'); td.className = 'clue-cell';
+      const offset = maxColClues - colClues[c].length;
+      td.textContent = k >= offset ? colClues[c][k - offset] : '';
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  const maxRowClues = Math.max(...rowClues.map(r=>r.length));
+  for (let r = 0; r < N; r++) {
+    const tr = document.createElement('tr');
+    const offset = maxRowClues - rowClues[r].length;
+    for (let k = 0; k < maxRowClues; k++) {
+      const td = document.createElement('td'); td.className = 'clue-cell';
+      td.textContent = k >= offset ? rowClues[r][k - offset] : '';
+      tr.appendChild(td);
+    }
+    for (let c = 0; c < N; c++) {
+      const td = document.createElement('td'); td.className = 'grid-cell';
+      td.dataset.r = r; td.dataset.c = c;
+      td.addEventListener('click', () => { state[r][c] = state[r][c] === 1 ? 0 : 1; renderState(); });
+      td.addEventListener('contextmenu', e => { e.preventDefault(); state[r][c] = state[r][c] === 2 ? 0 : 2; renderState(); });
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  nonogramEl.innerHTML = ''; nonogramEl.appendChild(table);
+}
+
+function renderState() {
+  document.querySelectorAll('.grid-cell').forEach(td => {
+    const r = parseInt(td.dataset.r), c = parseInt(td.dataset.c);
+    td.className = 'grid-cell';
+    if (state[r][c] === 1) td.classList.add('filled');
+    if (state[r][c] === 2) td.classList.add('marked');
+  });
+}
+
+document.getElementById('check-btn').addEventListener('click', () => {
+  let ok = true;
+  document.querySelectorAll('.grid-cell').forEach(td => {
+    const r = parseInt(td.dataset.r), c = parseInt(td.dataset.c);
+    const shouldFill = puzzle.sol[r][c] === 1;
+    const filled = state[r][c] === 1;
+    td.className = 'grid-cell';
+    if (shouldFill) { td.classList.add('filled'); td.classList.add(filled ? 'correct' : 'wrong'); if (!filled) ok = false; }
+    else if (filled) { td.classList.add('filled'); td.classList.add('wrong'); ok = false; }
+  });
+  statusEl.textContent = ok ? '🎉 Perfect!' : 'Not quite — red = mistakes';
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  const N = puzzle.size;
+  state = Array(N).fill(null).map(() => Array(N).fill(0));
+  renderState(); statusEl.textContent = '';
+});
+
+document.getElementById('next-btn').addEventListener('click', () => { pidx++; loadPuzzle(); });
+loadPuzzle();
+</script>
+</body>
+</html>

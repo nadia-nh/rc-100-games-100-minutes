@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Merge Numbers</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 10px; }
+#board { display: grid; grid-template-columns: repeat(5,70px); gap: 5px; }
+.cell { width: 70px; height: 70px; border-radius: 8px; display: flex; align-items: center;
+        justify-content: center; font-size: 1.2rem; font-weight: bold; cursor: pointer;
+        border: 2px solid rgba(0,0,0,0.1); transition: transform 0.1s; user-select: none; }
+.cell:hover { transform: scale(1.05); }
+.cell.empty { background: #e0d8cc; cursor: default; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="ui">
+  <span id="msg">Click two matching numbers to merge!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const W=5,H=4,board=document.getElementById('board'),msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const COLORS=['#eee','#ffd700','#f39c12','#e67e22','#e74c3c','#9b59b6','#3498db','#1abc9c','#2ecc71','#16a085','#8e44ad','#c0392b','#d35400'];
+let grid,sel,score,state='idle';
+
+function init(){
+  grid=Array(H*W).fill(0);score=0;sel=null;state='playing';btn.textContent='Restart';
+  // seed with some 1s and 2s
+  for(let i=0;i<8;i++)spawnTile();
+  msg.textContent='Score: 0';render();
+}
+
+function spawnTile(){
+  const empty=grid.map((v,i)=>v===0?i:-1).filter(i=>i>=0);
+  if(!empty.length)return false;
+  const i=empty[Math.floor(Math.random()*empty.length)];
+  grid[i]=Math.random()<0.8?1:2;return true;
+}
+
+function click(i){
+  if(state!=='playing'||grid[i]===0)return;
+  if(sel===null){sel=i;render();return;}
+  if(sel===i){sel=null;render();return;}
+  if(grid[sel]===grid[i]){
+    // merge
+    grid[i]=grid[sel]+1;grid[sel]=0;
+    score+=Math.pow(2,grid[i]);sel=null;
+    if(!spawnTile()){
+      if(grid.every(v=>v>0)){endGame();return;}
+    }
+    msg.textContent='Score: '+score;
+    if(grid[i]>=12){endGame(true);return;}
+  } else {sel=i;}
+  render();
+}
+
+const LABELS=['','1','2','4','8','16','32','64','128','256','512','1K','2K','MAX'];
+
+function render(){
+  board.innerHTML='';
+  grid.forEach((v,i)=>{
+    const d=document.createElement('div');
+    d.className='cell'+(v===0?' empty':'');
+    d.style.background=v?COLORS[Math.min(v,COLORS.length-1)]:'';
+    d.style.color=v>=4?'#fff':'#333';
+    if(sel===i)d.style.outline='3px solid #333';
+    d.textContent=v?LABELS[v]||'?':'';
+    d.onclick=()=>click(i);
+    board.appendChild(d);
+  });
+}
+
+function endGame(won){
+  state='over';
+  msg.textContent=won?`You reached MAX! Score: ${score} 🎉`:`Board full! Score: ${score}`;
+}
+
+btn.addEventListener('click',init);render();
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pixel Art</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+#wrap { display: flex; gap: 12px; align-items: flex-start; }
+canvas { cursor: crosshair; border: 2px solid #333; image-rendering: pixelated; }
+#palette { display: flex; flex-direction: column; gap: 4px; width: 36px; }
+.swatch { width: 36px; height: 36px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; }
+.swatch.sel { border-color: #fff; }
+#tools { display: flex; flex-direction: column; gap: 4px; }
+#tools button { background: #333; color: #eee; border: 1px solid #555; padding: 4px 6px;
+                cursor: pointer; font: 10px monospace; border-radius: 3px; width: 36px; }
+#tools button.active { background: #555; border-color: #fff; }
+#ui { display: flex; gap: 10px; align-items: center; font-size: 0.85rem; flex-wrap: wrap; justify-content: center; }
+button.main { background: #333; color: #eee; border: 1px solid #555; padding: 5px 10px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <div id="palette"></div>
+    <div id="tools">
+      <button id="tool-draw" class="active" title="Draw">✏️</button>
+      <button id="tool-fill" title="Fill">🪣</button>
+      <button id="tool-erase" title="Erase">⬜</button>
+    </div>
+  </div>
+  <canvas id="c" width="512" height="512"></canvas>
+</div>
+<div id="ui">
+  <span id="msg">Draw freely! Left click to paint.</span>
+  <button class="main" id="clear-btn">Clear</button>
+  <button class="main" id="save-btn">Save PNG</button>
+  <select id="grid-size" style="font:inherit;padding:3px;background:#333;color:#eee;border:1px solid #555;border-radius:3px">
+    <option value="16">16×16</option>
+    <option value="32" selected>32×32</option>
+    <option value="64">64×64</option>
+  </select>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const DISPLAY=512;
+const COLORS=['#000000','#ffffff','#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e91e63',
+              '#795548','#607d8b','#ff5722','#4caf50','#2196f3','#673ab7','#ffeb3b','#00bcd4','#ff9800','#8bc34a'];
+let grid,N,pixSize,selColor='#000000',tool='draw',drawing=false;
+
+function setGrid(n){
+  N=n;pixSize=DISPLAY/N;
+  grid=Array(N*N).fill('#ffffff');
+  render();
+}
+
+function render(){
+  ctx.clearRect(0,0,DISPLAY,DISPLAY);
+  for(let i=0;i<N*N;i++){
+    const r=Math.floor(i/N),c=i%N;
+    ctx.fillStyle=grid[i];ctx.fillRect(c*pixSize,r*pixSize,pixSize,pixSize);
+  }
+  // grid lines
+  if(pixSize>=8){ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;
+    for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(i*pixSize,0);ctx.lineTo(i*pixSize,DISPLAY);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,i*pixSize);ctx.lineTo(DISPLAY,i*pixSize);ctx.stroke();}}
+}
+
+function getCell(mx,my){return{r:Math.floor(my/pixSize),c:Math.floor(mx/pixSize)};}
+
+function paint(mx,my){
+  const{r,c}=getCell(mx,my);if(r<0||r>=N||c<0||c>=N)return;
+  const i=r*N+c;
+  if(tool==='erase'){grid[i]='#ffffff';}
+  else if(tool==='draw'){grid[i]=selColor;}
+  render();
+}
+
+function floodFill(r,c,target,replacement){
+  if(target===replacement)return;
+  const i=r*N+c;if(grid[i]!==target)return;
+  const stack=[[r,c]];
+  while(stack.length){
+    const[cr,cc]=stack.pop();const ci=cr*N+cc;
+    if(cr<0||cr>=N||cc<0||cc>=N||grid[ci]!==target)continue;
+    grid[ci]=replacement;
+    stack.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
+  }
+}
+
+// palette
+const palDiv=document.getElementById('palette');
+COLORS.forEach(c=>{
+  const d=document.createElement('div');d.className='swatch'+(c===selColor?' sel':'');
+  d.style.background=c;d.onclick=()=>{selColor=c;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));d.classList.add('sel');if(tool==='erase'){tool='draw';updateTools();}};
+  palDiv.appendChild(d);
+});
+// custom color
+const cc=document.createElement('input');cc.type='color';cc.value='#ff0000';cc.style.cssText='width:36px;height:36px;padding:2px;border:2px solid #555;border-radius:4px;cursor:pointer;background:#333;';
+cc.oninput=()=>{selColor=cc.value;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));};
+palDiv.appendChild(cc);
+
+function updateTools(){
+  document.getElementById('tool-draw').classList.toggle('active',tool==='draw');
+  document.getElementById('tool-fill').classList.toggle('active',tool==='fill');
+  document.getElementById('tool-erase').classList.toggle('active',tool==='erase');
+}
+document.getElementById('tool-draw').onclick=()=>{tool='draw';updateTools();};
+document.getElementById('tool-fill').onclick=()=>{tool='fill';updateTools();};
+document.getElementById('tool-erase').onclick=()=>{tool='erase';updateTools();};
+
+canvas.addEventListener('mousedown',e=>{
+  drawing=true;const r=canvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  if(tool==='fill'){const{r:row,c:col}=getCell(mx,my);floodFill(row,col,grid[row*N+col],selColor);render();}
+  else paint(mx,my);
+});
+canvas.addEventListener('mousemove',e=>{if(!drawing)return;const r=canvas.getBoundingClientRect();paint(e.clientX-r.left,e.clientY-r.top);});
+canvas.addEventListener('mouseup',()=>drawing=false);
+canvas.addEventListener('mouseleave',()=>drawing=false);
+
+document.getElementById('clear-btn').onclick=()=>{grid=Array(N*N).fill('#ffffff');render();};
+document.getElementById('save-btn').onclick=()=>{
+  const a=document.createElement('a');a.download='pixel-art.png';a.href=canvas.toDataURL();a.click();
+};
+document.getElementById('grid-size').onchange=e=>setGrid(parseInt(e.target.value));
+
+setGrid(32);
+</script>
+</body>
+</html>

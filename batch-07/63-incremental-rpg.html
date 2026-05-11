@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Incremental RPG</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a0a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+#game { width: 460px; display: flex; flex-direction: column; gap: 8px; }
+.panel { background: #2a2a1a; border: 1px solid #4a4a2a; border-radius: 6px; padding: 10px; }
+.bar-wrap { background: #111; border-radius: 4px; height: 14px; margin: 4px 0; overflow: hidden; }
+.bar { height: 100%; border-radius: 4px; transition: width 0.1s; }
+.hp-bar { background: #e74c3c; }
+.xp-bar { background: #3498db; }
+.en-bar { background: #f1c40f; }
+#log { height: 80px; overflow-y: auto; font-size: 0.78rem; color: #aaa; }
+#log div { padding: 1px 0; }
+#actions { display: flex; gap: 6px; flex-wrap: wrap; }
+#actions button { background: #3a3a1a; color: #eee; border: 1px solid #6a6a3a; padding: 6px 12px;
+                  cursor: pointer; font: inherit; border-radius: 4px; font-size: 0.85rem; }
+#actions button:hover { background: #5a5a2a; }
+#actions button:disabled { opacity: 0.4; cursor: default; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div class="panel" id="hero-panel"></div>
+  <div class="panel" id="enemy-panel"></div>
+  <div class="panel"><div id="log"></div></div>
+  <div id="actions"></div>
+</div>
+<div id="ui">
+  <span id="msg">Attack enemies to gain XP and level up!</span>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const ENEMIES=[
+  {name:'Slime',hp:10,atk:2,xp:5,gold:3},
+  {name:'Goblin',hp:20,atk:5,xp:12,gold:8},
+  {name:'Orc',hp:40,atk:10,xp:25,gold:18},
+  {name:'Troll',hp:80,atk:18,xp:50,gold:35},
+  {name:'Dragon',hp:200,atk:40,xp:120,gold:80},
+];
+const SPELLS=[
+  {name:'Fireball',cost:20,dmg:30,desc:'30 dmg'},
+  {name:'Heal',cost:15,dmg:-25,desc:'heal 25hp'},
+];
+const UPGRADES=[
+  {name:'+5 ATK',cost:30,apply:h=>{h.atk+=5;}},
+  {name:'+20 HP',cost:25,apply:h=>{h.maxHp+=20;h.hp+=20;}},
+  {name:'+10 MP',cost:20,apply:h=>{h.maxMp+=10;h.mp+=10;}},
+];
+
+let hero,enemy,gold,log;
+
+function init(){
+  hero={hp:30,maxHp:30,mp:30,maxMp:30,atk:8,xp:0,xpNext:20,level:1};
+  gold=10;log=[];spawnEnemy(0);render();
+}
+
+function spawnEnemy(tier){
+  const t=Math.min(tier,ENEMIES.length-1);
+  const e=ENEMIES[t];
+  enemy={...e,hp:e.hp,tier};
+}
+
+function addLog(txt,color='#aaa'){
+  log.push({txt,color});if(log.length>30)log.shift();
+  const div=document.getElementById('log');
+  div.innerHTML=log.map(l=>`<div style="color:${l.color}">${l.txt}</div>`).join('');
+  div.scrollTop=div.scrollHeight;
+}
+
+function gainXp(xp){
+  hero.xp+=xp;addLog(`+${xp} XP`,'#3498db');
+  while(hero.xp>=hero.xpNext){hero.xp-=hero.xpNext;hero.level++;hero.xpNext=Math.floor(hero.xpNext*1.6);
+    hero.maxHp+=10;hero.hp=hero.maxHp;hero.atk+=3;hero.maxMp+=8;hero.mp=hero.maxMp;
+    addLog(`Level up! Now Lv${hero.level}! HP/MP restored.`,'#ffd700');}
+}
+
+function attack(){
+  const dmg=hero.atk+Math.floor(Math.random()*5);
+  enemy.hp-=dmg;addLog(`You attack for ${dmg} damage.`,'#2ecc71');
+  if(enemy.hp<=0){addLog(`${enemy.name} defeated!`,'#ffd700');gainXp(enemy.xp);gold+=enemy.gold;
+    addLog(`+${enemy.gold} gold`,'#f1c40f');spawnEnemy(Math.floor(hero.level/2));render();return;}
+  const edmg=enemy.atk+Math.floor(Math.random()*4)-2;const d=Math.max(1,edmg);
+  hero.hp-=d;addLog(`${enemy.name} attacks for ${d}.`,'#e74c3c');
+  if(hero.hp<=0){hero.hp=0;addLog('You died... respawning with half gold.','#e74c3c');
+    gold=Math.max(0,Math.floor(gold/2));hero.hp=hero.maxHp;spawnEnemy(0);}
+  render();
+}
+
+function castSpell(i){
+  const sp=SPELLS[i];if(hero.mp<sp.cost)return;
+  hero.mp-=sp.cost;
+  if(sp.dmg<0){hero.hp=Math.min(hero.maxHp,hero.hp+(-sp.dmg));addLog(`Healed ${-sp.dmg} HP.`,'#2ecc71');}
+  else{enemy.hp-=sp.dmg;addLog(`${sp.name} hits for ${sp.dmg}!`,'#f80');
+    if(enemy.hp<=0){addLog(`${enemy.name} defeated!`,'#ffd700');gainXp(enemy.xp);gold+=enemy.gold;
+      spawnEnemy(Math.floor(hero.level/2));render();return;}}
+  render();
+}
+
+function buyUpgrade(i){
+  const u=UPGRADES[i];if(gold<u.cost)return;gold-=u.cost;u.apply(hero);
+  addLog(`Bought ${u.name}`,'#9b59b6');render();
+}
+
+function pct(v,m){return Math.max(0,Math.min(100,v/m*100))+'%';}
+
+function render(){
+  document.getElementById('hero-panel').innerHTML=
+    `<b>Hero Lv${hero.level}</b>  ATK:${hero.atk}  Gold:${gold}
+    <div class="bar-wrap"><div class="bar hp-bar" style="width:${pct(hero.hp,hero.maxHp)}"></div></div>
+    HP: ${Math.max(0,hero.hp)}/${hero.maxHp}
+    <div class="bar-wrap"><div class="bar en-bar" style="width:${pct(hero.mp,hero.maxMp)}"></div></div>
+    MP: ${hero.mp}/${hero.maxMp}
+    <div class="bar-wrap"><div class="bar xp-bar" style="width:${pct(hero.xp,hero.xpNext)}"></div></div>
+    XP: ${hero.xp}/${hero.xpNext}`;
+  document.getElementById('enemy-panel').innerHTML=
+    `<b>${enemy.name}</b>  ATK:${enemy.atk}
+    <div class="bar-wrap"><div class="bar hp-bar" style="width:${pct(enemy.hp,ENEMIES[enemy.tier].hp*(1+enemy.tier*0.1))}"></div></div>
+    HP: ${Math.max(0,enemy.hp)}/${ENEMIES[enemy.tier].hp}`;
+  const act=document.getElementById('actions');act.innerHTML='';
+  const attackBtn=document.createElement('button');attackBtn.textContent='⚔️ Attack';attackBtn.onclick=attack;act.appendChild(attackBtn);
+  SPELLS.forEach((sp,i)=>{const b=document.createElement('button');b.textContent=`✨${sp.name}(${sp.cost}mp)`;
+    b.disabled=hero.mp<sp.cost;b.onclick=()=>castSpell(i);act.appendChild(b);});
+  UPGRADES.forEach((u,i)=>{const b=document.createElement('button');b.textContent=`🛒${u.name}(${u.cost}g)`;
+    b.disabled=gold<u.cost;b.onclick=()=>buyUpgrade(i);act.appendChild(b);});
+}
+
+init();
+</script>
+</body>
+</html>

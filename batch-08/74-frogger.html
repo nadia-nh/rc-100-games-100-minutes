@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Frogger Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="420" height="460"></canvas>
+<div id="ui">
+  <span id="msg">Arrow keys to hop · Reach the top!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=420,H=460,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const T=42,COLS=10,ROWS=10;
+
+// Row types: 'safe','road','water'
+const ROW_DEFS=[
+  {type:'safe',color:'#2a5a2a'},// row 9 - start
+  {type:'road',color:'#333',lanes:[{dir:1,speed:2,objs:[{x:0,w:80},{x:160,w:60},{x:280,w:80}]},{dir:-1,speed:2.5,objs:[{x:50,w:60},{x:200,w:80},{x:340,w:60}]}]},
+  {type:'road',color:'#333',lanes:[{dir:1,speed:3,objs:[{x:0,w:60},{x:140,w:80},{x:300,w:60}]}]},
+  {type:'road',color:'#333',lanes:[{dir:-1,speed:2,objs:[{x:80,w:100},{x:260,w:80}]}]},
+  {type:'safe',color:'#2a5a2a'},// median
+  {type:'water',color:'#1a3a6a',logs:[{x:0,w:100,speed:1.5,dir:1},{x:180,w:80,speed:1.5,dir:1},{x:320,w:100,speed:1.5,dir:1}]},
+  {type:'water',color:'#1a3a6a',logs:[{x:40,w:80,speed:2,dir:-1},{x:200,w:100,speed:2,dir:-1}]},
+  {type:'water',color:'#1a3a6a',logs:[{x:0,w:120,speed:1,dir:1},{x:240,w:80,speed:1,dir:1}]},
+  {type:'water',color:'#1a3a6a',logs:[{x:60,w:60,speed:2.5,dir:-1},{x:200,w:80,speed:2.5,dir:-1},{x:340,w:60,speed:2.5,dir:-1}]},
+  {type:'safe',color:'#1a5a1a'},// goal
+];
+
+let frog,score,lives,level,goals,raf,state='idle';
+
+function init(){
+  frog={c:5,r:9,onLog:null};score=0;lives=3;level=1;goals=new Set();
+  // init object positions
+  ROW_DEFS.forEach(row=>{
+    if(row.lanes)row.lanes.forEach(l=>l.objs.forEach(o=>o.cx=o.x+o.w/2));
+    if(row.logs)row.logs.forEach(l=>l.cx=l.x+l.w/2);
+  });
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function move(dc,dr){
+  if(state!=='playing')return;
+  const nc=frog.c+dc,nr=frog.r+dr;
+  if(nc<0||nc>=COLS||nr<0||nr>=ROWS)return;
+  frog.c=nc;frog.r=nr;frog.onLog=null;
+}
+
+function update(){
+  const speed=1+level*0.1;
+  ROW_DEFS.forEach(row=>{
+    if(row.lanes)row.lanes.forEach(l=>l.objs.forEach(o=>{
+      o.cx+=l.dir*l.speed*speed*0.5;
+      if(o.cx-o.w/2>W)o.cx=-o.w/2;
+      if(o.cx+o.w/2<0)o.cx=W+o.w/2;
+    }));
+    if(row.logs)row.logs.forEach(l=>{
+      l.cx+=l.dir*l.speed*speed*0.5;
+      if(l.cx-l.w/2>W)l.cx=-l.w/2;
+      if(l.cx+l.w/2<0)l.cx=W+l.w/2;
+    });
+  });
+
+  const fx=frog.c*T+T/2,fy=frog.r*T+T/2+20;
+  const row=ROW_DEFS[frog.r];
+  frog.onLog=null;
+
+  if(row.type==='road'){
+    // check car collision
+    for(const lane of row.lanes||[]){
+      for(const o of lane.objs){
+        if(Math.abs(fx-o.cx)<o.w/2+T*0.3&&Math.abs(fy-(frog.r*T+T/2+20))<T*0.4){
+          loseLife();return;
+        }
+      }
+    }
+  }
+  if(row.type==='water'){
+    let onAnyLog=false;
+    for(const l of row.logs||[]){
+      if(Math.abs(fx-l.cx)<l.w/2-4){onAnyLog=true;frog.onLog=l;break;}
+    }
+    if(!onAnyLog){loseLife();return;}
+    // ride the log
+    frog.c=Math.max(0,Math.min(COLS-1,Math.round((frog.onLog.cx-T/2)/T)));
+  }
+  if(frog.r===0){
+    goals.add(frog.c);score+=200;frog.c=5;frog.r=9;
+    if(goals.size>=5){level++;goals=new Set();score+=500;}
+  }
+  msg.textContent=`Score: ${score}  Lives: ${'🐸'.repeat(lives)}  Level: ${level}`;
+}
+
+function loseLife(){
+  lives--;frog.c=5;frog.r=9;frog.onLog=null;
+  if(lives<=0)endGame();
+}
+
+function draw(){
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  // rows
+  ROW_DEFS.forEach((row,r)=>{
+    ctx.fillStyle=row.color;ctx.fillRect(0,r*T+20,W,T);
+    if(row.lanes)row.lanes.forEach(l=>l.objs.forEach(o=>{
+      ctx.fillStyle='#e74c3c';ctx.fillRect(o.cx-o.w/2,r*T+24,o.w,T-8);
+      ctx.fillStyle='#f00';ctx.fillRect(o.cx-o.w/2+4,r*T+20,o.w-8,10);
+    }));
+    if(row.logs)row.logs.forEach(l=>{
+      ctx.fillStyle='#8B4513';ctx.fillRect(l.cx-l.w/2,r*T+26,l.w,T-12);
+      ctx.fillStyle='#a0522d';ctx.fillRect(l.cx-l.w/2,r*T+26,l.w,6);
+    });
+    // goal slots
+    if(r===0){
+      for(let c=0;c<COLS;c++){
+        ctx.fillStyle=goals.has(c)?'#ffd700':'#3a7a3a';
+        ctx.fillRect(c*T+4,r*T+24,T-8,T-8);
+        if(goals.has(c)){ctx.font='18px serif';ctx.textAlign='center';ctx.fillText('🐸',c*T+T/2,r*T+T/2+20+6);}
+      }
+      ctx.textAlign='left';
+    }
+  });
+  // frog
+  ctx.font='24px serif';ctx.textAlign='center';
+  ctx.fillText('🐸',frog.c*T+T/2,frog.r*T+T/2+20+8);ctx.textAlign='left';
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,W,20);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.fillText(`Score: ${score}  ${'🐸'.repeat(lives)}  Lv${level}`,4,14);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.78)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#2ecc71';ctx.font='bold 24px monospace';ctx.textAlign='center';
+    ctx.fillText('FROGGER',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='13px monospace';
+    ctx.fillText('Hop to the top · Avoid cars!',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('SPLAT!',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent='Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{
+  if(state==='idle'||state==='over'){init();return;}
+  if(e.code==='ArrowUp'){e.preventDefault();move(0,-1);}
+  if(e.code==='ArrowDown'){e.preventDefault();move(0,1);}
+  if(e.code==='ArrowLeft'){e.preventDefault();move(-1,0);}
+  if(e.code==='ArrowRight'){e.preventDefault();move(1,0);}
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

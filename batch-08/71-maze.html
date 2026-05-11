@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Maze Runner</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="420" height="420"></canvas>
+<div id="ui">
+  <span id="msg">Arrow keys to navigate · Reach the gold star!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=420,H=420,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const N=21,T=W/N;// must be odd for maze gen
+let maze,player,steps,level,state='idle',keys={};
+
+// Recursive backtracker maze generation
+function genMaze(n){
+  const cells=Array(n).fill(null).map(()=>Array(n).fill(0xF));// 4 walls each
+  // walls: bit0=N, bit1=E, bit2=S, bit3=W
+  const visited=Array(n).fill(null).map(()=>Array(n).fill(false));
+  function carve(r,c){
+    visited[r][c]=true;
+    const dirs=[[−1,0,0,2],[0,1,1,3],[1,0,2,0],[0,−1,3,1]];
+    dirs.sort(()=>Math.random()-0.5);
+    for(const[dr,dc,wall,opp]of dirs){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<n&&nc>=0&&nc<n&&!visited[nr][nc]){
+        cells[r][c]&=~(1<<wall);cells[nr][nc]&=~(1<<opp);carve(nr,nc);
+      }
+    }
+  }
+  carve(0,0);return cells;
+}
+
+function init(){
+  level=1;maze=genMaze(N);player={r:0,c:0};steps=0;state='playing';btn.textContent='Restart';
+  msg.textContent='Steps: 0';draw();
+}
+
+function move(dr,dc){
+  if(state!=='playing')return;
+  const{r,c}=player;
+  const wallBit=dr===-1?0:dc===1?1:dr===1?2:3;
+  if(maze[r][c]&(1<<wallBit))return;// wall blocks
+  player={r:r+dr,c:c+dc};steps++;
+  if(player.r===N-1&&player.c===N-1){
+    level++;maze=genMaze(N);player={r:0,c:0};
+    msg.textContent=`Level ${level}! Steps: ${steps}`;
+  } else msg.textContent=`Steps: ${steps}`;
+  draw();
+}
+
+function draw(){
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#3a6a9a';ctx.lineWidth=1.5;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const x=c*T,y=r*T,w=maze[r][c];
+    ctx.beginPath();
+    if(w&1){ctx.moveTo(x,y);ctx.lineTo(x+T,y);}// N
+    if(w&2){ctx.moveTo(x+T,y);ctx.lineTo(x+T,y+T);}// E
+    if(w&4){ctx.moveTo(x,y+T);ctx.lineTo(x+T,y+T);}// S
+    if(w&8){ctx.moveTo(x,y);ctx.lineTo(x,y+T);}// W
+    ctx.stroke();
+  }
+  // goal
+  ctx.fillStyle='#ffd700';ctx.font='16px serif';ctx.textAlign='center';
+  ctx.fillText('★',(N-0.5)*T,(N-0.4)*T);ctx.textAlign='left';
+  // player
+  ctx.fillStyle='#3af';ctx.beginPath();
+  ctx.arc((player.c+0.5)*T,(player.r+0.5)*T,T*0.3,0,Math.PI*2);ctx.fill();
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,20);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';
+  ctx.fillText(`Level ${level}  Steps: ${steps}  (reach ★ bottom-right)`,4,14);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('MAZE RUNNER',W/2,H/2-16);ctx.font='13px monospace';
+    ctx.fillText('Arrow keys · Reach the ★',W/2,H/2+14);ctx.textAlign='left';
+  }
+}
+
+document.addEventListener('keydown',e=>{
+  if(state==='idle'){init();return;}
+  if(e.code==='ArrowUp'){e.preventDefault();move(-1,0);}
+  if(e.code==='ArrowDown'){e.preventDefault();move(1,0);}
+  if(e.code==='ArrowLeft'){e.preventDefault();move(0,-1);}
+  if(e.code==='ArrowRight'){e.preventDefault();move(0,1);}
+  if(e.code==='Space'){e.preventDefault();if(state==='idle')init();}
+});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

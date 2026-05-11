@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Color Match</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 20px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 30px; font-size: 1rem; color: #aaa; }
+#word { font-size: 4rem; font-weight: 900; min-height: 90px; display: flex;
+        align-items: center; justify-content: center; }
+#prompt { font-size: 1rem; color: #888; }
+#buttons { display: flex; gap: 20px; }
+.ans { padding: 14px 40px; border: none; border-radius: 8px; font: inherit; font-size: 1.1rem;
+       font-weight: 700; cursor: pointer; }
+#yes-btn { background: #27ae60; color: #fff; }
+#no-btn  { background: #c0392b; color: #fff; }
+.ans:disabled { opacity: 0.5; }
+#feedback { font-size: 1.2rem; font-weight: 700; min-height: 1.5em; }
+#timer-bar { width: 320px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+#timer-fill { height: 100%; background: #3498db; transition: width 0.1s linear; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>🎨 Color Match</h1>
+<div id="info">
+  <span>Score: <b id="score">0</b></span>
+  <span>Streak: <b id="streak">0</b></span>
+  <span>Round: <b id="round">1</b>/15</span>
+</div>
+<div id="timer-bar"><div id="timer-fill" style="width:100%"></div></div>
+<div id="word">—</div>
+<div id="prompt">Does the ink color match the word?</div>
+<div id="buttons">
+  <button class="ans" id="yes-btn">✅ Match</button>
+  <button class="ans" id="no-btn">❌ No Match</button>
+</div>
+<div id="feedback"></div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const COLORS = ['red','blue','green','yellow','purple','orange','pink','cyan'];
+const COLOR_CSS = { red:'#e74c3c', blue:'#3498db', green:'#2ecc71', yellow:'#f1c40f',
+                    purple:'#9b59b6', orange:'#e67e22', pink:'#ff69b4', cyan:'#00bcd4' };
+const wordEl = document.getElementById('word');
+const scoreEl = document.getElementById('score');
+const streakEl = document.getElementById('streak');
+const roundEl = document.getElementById('round');
+const feedEl = document.getElementById('feedback');
+const yesBtn = document.getElementById('yes-btn');
+const noBtn = document.getElementById('no-btn');
+const fill = document.getElementById('timer-fill');
+
+let score = 0, streak = 0, round = 0, match = false, active = false, timer = null;
+const TOTAL = 15, TIME = 2.5;
+
+function next() {
+  if (round >= TOTAL) { endGame(); return; }
+  round++;
+  roundEl.textContent = round;
+  feedEl.textContent = '';
+  yesBtn.disabled = noBtn.disabled = false;
+  const word = COLORS[Math.floor(Math.random() * COLORS.length)];
+  let ink;
+  match = Math.random() > 0.5;
+  if (match) { ink = word; }
+  else { do { ink = COLORS[Math.floor(Math.random() * COLORS.length)]; } while (ink === word); }
+  wordEl.textContent = word.toUpperCase();
+  wordEl.style.color = COLOR_CSS[ink];
+  active = true;
+  let elapsed = 0;
+  clearInterval(timer);
+  fill.style.width = '100%';
+  timer = setInterval(() => {
+    elapsed += 100;
+    fill.style.width = (100 - elapsed / (TIME * 1000) * 100) + '%';
+    if (elapsed >= TIME * 1000) { clearInterval(timer); if (active) timeout(); }
+  }, 100);
+}
+
+function timeout() { active = false; streak = 0; feedEl.textContent = '⏰ Too slow!'; feedEl.style.color = '#e67e22'; streakEl.textContent = 0; setTimeout(next, 800); }
+
+function answer(isMatch) {
+  if (!active) return;
+  active = false;
+  clearInterval(timer);
+  if (isMatch === match) {
+    score += 10 + streak * 2; streak++;
+    feedEl.textContent = '✅ Correct!'; feedEl.style.color = '#2ecc71';
+  } else {
+    streak = 0; feedEl.textContent = '❌ Wrong!'; feedEl.style.color = '#e74c3c';
+  }
+  scoreEl.textContent = score; streakEl.textContent = streak;
+  yesBtn.disabled = noBtn.disabled = true;
+  setTimeout(next, 700);
+}
+
+function endGame() {
+  wordEl.style.color = '#eee';
+  wordEl.textContent = '🏁';
+  feedEl.textContent = `Final score: ${score} / ${TOTAL * 10}. ${score >= 120 ? '🏆 Amazing!' : score >= 80 ? '👍 Good!' : '😅 Try again!'}`;
+  yesBtn.textContent = 'Restart'; yesBtn.disabled = false; noBtn.style.display = 'none';
+  yesBtn.onclick = () => { score = 0; streak = 0; round = 0; noBtn.style.display = ''; yesBtn.onclick = () => answer(true); next(); };
+}
+
+yesBtn.addEventListener('click', () => answer(true));
+noBtn.addEventListener('click', () => answer(false));
+next();
+</script>
+</body>
+</html>

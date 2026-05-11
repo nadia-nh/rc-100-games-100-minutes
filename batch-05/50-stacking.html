@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stacking Blocks</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; cursor: pointer; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="320" height="500"></canvas>
+<div id="ui">
+  <span id="msg">Space or Click to drop block!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=320,H=500,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const BLOCK_H=28,BASE_W=200,SPEED_START=2;
+let state='idle',blocks,current,score,camY,raf,speed,dir;
+
+function init(){
+  blocks=[{x:W/2-BASE_W/2,y:H-BLOCK_H,w:BASE_W,h:BLOCK_H,color:'#4a8a4a'}];
+  score=0;camY=0;speed=SPEED_START;dir=1;
+  const startW=BASE_W;
+  current={x:0,y:H-BLOCK_H*2,w:startW,h:BLOCK_H,color:nextColor(0),vx:speed};
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function nextColor(n){
+  const hues=[200,160,280,40,320,80,0];
+  return `hsl(${hues[n%hues.length]},70%,55%)`;
+}
+
+function drop(){
+  if(state!=='playing')return;
+  const top=blocks[blocks.length-1];
+  // overlap
+  const left=Math.max(current.x,top.x);
+  const right=Math.min(current.x+current.w,top.x+top.w);
+  const overlap=right-left;
+  if(overlap<=0){endGame();return;}
+
+  // trim block to overlap
+  const trimmed={x:left,y:top.y-BLOCK_H,w:overlap,h:BLOCK_H,color:current.color};
+  blocks.push(trimmed);
+  score+=Math.round(overlap/top.w*100);
+
+  // scroll camera
+  if(trimmed.y-camY<180)camY=trimmed.y-180;
+
+  // next block
+  const newW=overlap;
+  speed=Math.min(SPEED_START+blocks.length*0.15,7);
+  dir=Math.random()<0.5?1:-1;
+  current={x:dir>0?-newW:W,y:trimmed.y-BLOCK_H,w:newW,h:BLOCK_H,
+           color:nextColor(blocks.length),vx:speed*dir};
+
+  // win at height 20
+  if(blocks.length>=20){endGame(true);return;}
+  msg.textContent=`Score: ${score}  Height: ${blocks.length}/20`;
+}
+
+function update(){
+  current.x+=current.vx;
+  if(current.x>W+10||current.x+current.w<-10)current.vx*=-1;
+}
+
+function draw(){
+  ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(0,-camY);
+  // stacked blocks
+  blocks.forEach((b,i)=>{
+    ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,b.w,b.h);
+    ctx.fillStyle='rgba(255,255,255,0.2)';ctx.fillRect(b.x,b.y,b.w,6);
+    ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fillRect(b.x,b.y+b.h-4,b.w,4);
+  });
+  // current moving block
+  ctx.fillStyle=current.color;ctx.fillRect(current.x,current.y,current.w,current.h);
+  ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(current.x,current.y,current.w,6);
+  // guide line
+  const top=blocks[blocks.length-1];
+  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(top.x,current.y+BLOCK_H);ctx.lineTo(top.x+top.w,current.y+BLOCK_H);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';
+  ctx.fillText(`Score: ${score}  Height: ${blocks.length}/20`,4,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('STACKING',W/2,H/2-20);ctx.font='13px monospace';
+    ctx.fillText('Space or Click to drop block!',W/2,H/2+10);
+    ctx.fillText('Stack 20 blocks to win',W/2,H/2+30);ctx.textAlign='left';
+  }
+}
+
+function endGame(won){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#2ecc71':'#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'PERFECT!':'FELL OFF!',W/2,H/2-16);
+  ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText(`Score: ${score}  Height: ${blocks.length}`,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent=(won?'You win! ':'Game over · ')+'Score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();
+    if(state==='idle'||state==='over')init();else drop();}
+});
+canvas.addEventListener('click',()=>{if(state==='idle'||state==='over')init();else drop();});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

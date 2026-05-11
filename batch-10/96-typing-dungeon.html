@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Typing Dungeon</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #1a1a2e; padding: 20px; }
+h1 { margin-bottom: 14px; }
+#status { font-size: 1rem; font-weight: 600; margin-bottom: 16px; min-height: 1.5em; color: #444; }
+#board { width: min(600px,100%); background: #fff; border: 1px solid #d8d0c0; border-radius: 14px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+#word { font-size: 2rem; letter-spacing: 0.08em; margin-bottom: 16px; }
+#info { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; font-family: monospace; }
+input { width: 100%; padding: 12px 14px; border: 1px solid #ccc; border-radius: 10px; font-size: 1rem; }
+#controls { margin-top: 16px; display: flex; gap: 10px; }
+button { background: #e07b54; color: #fff; border: none; padding: 10px 22px; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 700; }
+button:hover { background: #c5613c; }
+a { color: #888; font-size: 0.85rem; text-decoration: none; margin-top: 12px; }
+a:hover { color: #555; }
+</style>
+</head>
+<body>
+<h1>Typing Dungeon</h1>
+<div id="status">Ready</div>
+<div id="board">
+  <div id="word">Press Start</div>
+  <div id="info"><span id="round">Round: 0/5</span><span id="enemy">Enemies: 0</span><span id="hp">HP: 0</span></div>
+  <input id="entry" disabled autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+  <div id="controls"><button id="btn">Start</button></div>
+</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const statusEl=document.getElementById('status');
+const wordEl=document.getElementById('word');
+const roundEl=document.getElementById('round');
+const enemyEl=document.getElementById('enemy');
+const hpEl=document.getElementById('hp');
+const entry=document.getElementById('entry');
+const btn=document.getElementById('btn');
+const words=['magic','goblin','castle','wizard','torch','dragon','dungeon','sword','shield','portal'];
+let state='idle',round=0,hp=5,enemies=5,currentWord='';
+function init(){state='playing';round=1;hp=5;enemies=5;nextWord();btn.textContent='Restart';entry.disabled=false;entry.value='';entry.focus();statusEl.textContent='Type the words to defeat the monsters.';render();}
+function nextWord(){currentWord=words[Math.floor(Math.random()*words.length)];entry.value='';entry.focus();render();}
+function render(){wordEl.textContent = state==='idle' ? 'Press Start' : currentWord.toUpperCase();
+  roundEl.textContent = `Round: ${round}/5`;
+  enemyEl.textContent = `Enemies: ${enemies}`;
+  hpEl.textContent = `HP: ${hp}`;
+}
+function endGame(won){state='over';entry.disabled=true;btn.textContent='Play Again';
+  if(won){statusEl.textContent='Victory! All monsters defeated.';wordEl.textContent='🏆 Dungeon Cleared!';}
+  else {statusEl.textContent='Defeated... Try again.';wordEl.textContent='💀 Game Over';}
+}
+entry.addEventListener('input',()=>{
+  if(state!=='playing')return;
+  if(entry.value.trim().toLowerCase()===currentWord){enemies--;statusEl.textContent='Hit!';
+    if(enemies<=0){if(round>=5){endGame(true);return;}round++;enemies=5;statusEl.textContent='Floor cleared! Next round.';}
+    nextWord();}
+});
+btn.addEventListener('click',init);
+init();
+</script>
+</body>
+</html>

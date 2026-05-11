@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lights Out</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 12px; }
+#board { display: grid; grid-template-columns: repeat(5,70px); gap: 6px; }
+.cell { width: 70px; height: 70px; border-radius: 8px; cursor: pointer; border: 2px solid #333;
+        transition: background 0.1s; }
+.cell.on { background: #ffe066; box-shadow: 0 0 16px #ffe066; border-color: #ffd700; }
+.cell.off { background: #222; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="ui">
+  <span id="msg">Toggle a light and its neighbors to turn all off!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const board=document.getElementById('board'),msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const N=5;
+let grid,moves,state='idle';
+
+function init(){
+  grid=Array(N*N).fill(0);moves=0;state='playing';btn.textContent='New Game';
+  // random solvable: apply random toggles from solved state
+  for(let i=0;i<12;i++)toggle(Math.floor(Math.random()*N*N));
+  moves=0;render();msg.textContent='Moves: 0';
+}
+
+function toggle(i){
+  const r=Math.floor(i/N),c=i%N;
+  [[0,0],[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<N&&nc>=0&&nc<N)grid[nr*N+nc]^=1;
+  });
+}
+
+function click(i){
+  if(state!=='playing')return;
+  toggle(i);moves++;
+  if(grid.every(v=>v===0)){state='over';msg.textContent=`All off in ${moves} moves! 🎉`;}
+  else msg.textContent=`Moves: ${moves}`;
+  render();
+}
+
+function render(){
+  board.innerHTML='';
+  grid.forEach((v,i)=>{
+    const d=document.createElement('div');
+    d.className='cell '+(v?'on':'off');
+    d.onclick=()=>click(i);
+    board.appendChild(d);
+  });
+}
+
+btn.addEventListener('click',init);
+render();
+</script>
+</body>
+</html>

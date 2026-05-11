@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Whack A Mole</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #2d5a1b; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 16px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 28px; font-size: 1.1rem; background: rgba(0,0,0,0.3); padding: 8px 24px; border-radius: 8px; }
+#grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.hole { width: 110px; height: 110px; background: #1a3a0a; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; font-size: 3rem;
+        cursor: pointer; user-select: none; transition: background 0.1s; position: relative;
+        border: 4px solid #0d2005; box-shadow: inset 0 6px 12px rgba(0,0,0,0.5); }
+.hole.active { background: #3a6a1a; }
+.hole.hit { background: #e74c3c; }
+#status { font-size: 1.1rem; min-height: 1.5em; font-weight: 700; }
+button { background: #8B4513; color: #fff; border: none; padding: 10px 28px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+a { color: rgba(255,255,255,0.4); font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>🔨 Whack A Mole</h1>
+<div id="info">
+  <span>Score: <b id="score">0</b></span>
+  <span>Misses: <b id="misses">0</b></span>
+  <span>Time: <b id="time">30</b>s</span>
+</div>
+<div id="grid"></div>
+<div id="status">Press Start!</div>
+<button id="btn">Start</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const grid = document.getElementById('grid');
+const scoreEl = document.getElementById('score');
+const missesEl = document.getElementById('misses');
+const timeEl = document.getElementById('time');
+const statusEl = document.getElementById('status');
+const btn = document.getElementById('btn');
+const CELLS = 9;
+let holes = [], moleTimer = null, clockTimer = null, score = 0, misses = 0, timeLeft = 30, running = false;
+
+for (let i = 0; i < CELLS; i++) {
+  const h = document.createElement('div');
+  h.className = 'hole';
+  h.textContent = '';
+  h.dataset.i = i;
+  h.addEventListener('click', () => {
+    if (!running || !h.classList.contains('active')) { if (running) { misses++; missesEl.textContent = misses; } return; }
+    h.classList.remove('active'); h.classList.add('hit'); h.textContent = '💥';
+    score += 10; scoreEl.textContent = score;
+    setTimeout(() => { h.classList.remove('hit'); h.textContent = ''; }, 300);
+  });
+  grid.appendChild(h);
+  holes.push(h);
+}
+
+function showMole() {
+  holes.forEach(h => { h.classList.remove('active'); if (!h.classList.contains('hit')) h.textContent = ''; });
+  const count = Math.min(1 + Math.floor((30 - timeLeft) / 10), 3);
+  const picks = [...holes].sort(() => Math.random() - 0.5).slice(0, count);
+  picks.forEach(h => { h.classList.add('active'); h.textContent = '🐹'; });
+  const delay = Math.max(600, 1200 - (30 - timeLeft) * 20);
+  moleTimer = setTimeout(showMole, delay);
+}
+
+btn.addEventListener('click', () => {
+  if (running) return;
+  score = 0; misses = 0; timeLeft = 30; running = true;
+  scoreEl.textContent = 0; missesEl.textContent = 0; timeEl.textContent = 30;
+  statusEl.textContent = 'Whack those moles!';
+  btn.style.display = 'none';
+  showMole();
+  clockTimer = setInterval(() => {
+    timeLeft--;
+    timeEl.textContent = timeLeft;
+    if (timeLeft <= 0) {
+      clearTimeout(moleTimer); clearInterval(clockTimer); running = false;
+      holes.forEach(h => { h.classList.remove('active'); h.textContent = ''; });
+      statusEl.textContent = `Time's up! Score: ${score} | ${score >= 150 ? '🏆' : score >= 80 ? '👍' : '😅'} ${score >= 150 ? 'Champion!' : score >= 80 ? 'Nice job!' : 'Keep trying!'}`;
+      btn.textContent = 'Play Again'; btn.style.display = '';
+    }
+  }, 1000);
+});
+</script>
+</body>
+</html>

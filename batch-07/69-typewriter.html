@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Typewriter Fever</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 12px; }
+#game { width: 500px; }
+#target { font-size: 1.4rem; line-height: 1.8; background: #0a0a0a; padding: 14px; border-radius: 8px;
+          border: 1px solid #333; letter-spacing: 0.05em; min-height: 80px; }
+#target .done { color: #2ecc71; }
+#target .wrong { color: #e74c3c; background: rgba(231,76,60,0.2); }
+#target .cursor { border-left: 2px solid #fff; animation: blink 0.7s step-end infinite; }
+@keyframes blink { 50% { border-color: transparent; } }
+#target .remaining { color: #555; }
+#input { width: 100%; padding: 10px; background: #111; border: 2px solid #333; color: #eee;
+         font: inherit; font-size: 1.1rem; border-radius: 6px; outline: none; }
+#input:focus { border-color: #4a8ac4; }
+#stats { display: flex; gap: 20px; font-size: 0.9rem; color: #aaa; }
+.stat { display: flex; flex-direction: column; align-items: center; }
+.stat span { font-size: 1.4rem; font-weight: bold; color: #fff; }
+#timer-bar { height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+#timer-fill { height: 100%; background: #3498db; border-radius: 3px; transition: width 0.1s; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="stats">
+    <div class="stat">WPM<span id="wpm">0</span></div>
+    <div class="stat">Accuracy<span id="acc">100%</span></div>
+    <div class="stat">Score<span id="score">0</span></div>
+    <div class="stat">Time<span id="time">60</span></div>
+  </div>
+  <div id="timer-bar"><div id="timer-fill" style="width:100%"></div></div>
+  <div id="target"></div>
+  <input id="input" type="text" placeholder="Press Start then type here..." disabled autocomplete="off" spellcheck="false">
+</div>
+<div id="ui">
+  <span id="msg">Type the highlighted text as fast as you can!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const SENTENCES=[
+  'the quick brown fox jumps over the lazy dog',
+  'pack my box with five dozen liquor jugs',
+  'how vexingly quick daft zebras jump',
+  'the five boxing wizards jump quickly',
+  'sphinx of black quartz judge my vow',
+  'two driven jocks help fax my big quiz',
+  'the job requires extra pluck and zeal from every young wage earner',
+  'a wizard quickly jinxed the gnomes before they vaporized',
+  'jackdaws love my big sphinx of quartz',
+  'the early bird catches the worm but the second mouse gets the cheese',
+  'all that glitters is not gold and not all who wander are lost',
+  'to be or not to be that is the question whether tis nobler',
+  'in the beginning was the word and the word was with the world',
+  'it was the best of times it was the worst of times',
+  'call me ishmael some years ago never mind how long precisely',
+];
+
+const DURATION=60;
+let typed,target,errors,totalChars,startTime,timerEnd,raf,state='idle',wordCount;
+
+function pickText(){
+  const count=3+Math.floor(wordCount/10);
+  const pool=[];
+  while(pool.join(' ').split(' ').length<count){
+    pool.push(SENTENCES[Math.floor(Math.random()*SENTENCES.length)]);
+  }
+  return pool.join(' ').split(' ').slice(0,count+5).join(' ');
+}
+
+function init(){
+  wordCount=0;typed='';errors=0;totalChars=0;
+  target=pickText();startTime=Date.now();timerEnd=Date.now()+DURATION*1000;
+  state='playing';document.getElementById('btn').textContent='Restart';
+  const inp=document.getElementById('input');inp.disabled=false;inp.value='';inp.focus();
+  renderText();requestAnimationFrame(tick);
+}
+
+function tick(){
+  if(state!=='playing')return;
+  const elapsed=(Date.now()-startTime)/1000;
+  const left=Math.max(0,(timerEnd-Date.now())/1000);
+  document.getElementById('time').textContent=Math.ceil(left);
+  document.getElementById('timer-fill').style.width=(left/DURATION*100)+'%';
+  const wpm=elapsed>0?Math.round((totalChars/5)/(elapsed/60)):0;
+  const acc=totalChars>0?Math.round((1-errors/Math.max(totalChars,1))*100):100;
+  document.getElementById('wpm').textContent=wpm;
+  document.getElementById('acc').textContent=acc+'%';
+  document.getElementById('score').textContent=Math.floor(wpm*acc/100);
+  if(left<=0){endGame();return;}
+  requestAnimationFrame(tick);
+}
+
+function onInput(e){
+  if(state!=='playing')return;
+  const val=e.target.value;
+  // check each char
+  let good=0,bad=0;
+  for(let i=0;i<val.length;i++){
+    if(i>=target.length)break;
+    if(val[i]===target[i])good++;else bad++;
+  }
+  typed=val;
+  // count words completed
+  if(val.endsWith(' ')&&val.trim()===target.slice(0,val.trim().length)){
+    wordCount++;totalChars+=val.length;errors+=bad;
+    // refill target if running low
+    if(typed.length>target.length-20)target+=' '+pickText();
+    e.target.value='';typed='';
+  } else if(val.length>0){
+    totalChars=good+bad;errors=bad;
+  }
+  renderText();
+}
+
+function renderText(){
+  const div=document.getElementById('target');
+  const remaining=target.slice(typed.length);
+  let html='';
+  for(let i=0;i<typed.length;i++){
+    if(i>=target.length)break;
+    const ok=typed[i]===target[i];
+    html+=`<span class="${ok?'done':'wrong'}">${target[i]}</span>`;
+  }
+  if(typed.length<target.length)html+=`<span class="cursor"></span>`;
+  html+=`<span class="remaining">${remaining.slice(0,80)}</span>`;
+  div.innerHTML=html;
+}
+
+function endGame(){
+  state='over';
+  document.getElementById('input').disabled=true;
+  const elapsed=DURATION;
+  const wpm=Math.round((totalChars/5)/(elapsed/60));
+  const acc=totalChars>0?Math.round((1-errors/Math.max(totalChars,1))*100):100;
+  document.getElementById('msg').textContent=`Done! ${wpm} WPM · ${acc}% accuracy · Score: ${Math.floor(wpm*acc/100)}`;
+}
+
+document.getElementById('input').addEventListener('input',onInput);
+document.getElementById('btn').addEventListener('click',init);
+</script>
+</body>
+</html>

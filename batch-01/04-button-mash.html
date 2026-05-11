@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Button Mash</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 18px; }
+h1 { font-size: 1.8rem; }
+#timer { font-size: 3rem; font-weight: 900; color: #f39c12; font-family: monospace; }
+#count { font-size: 2rem; font-weight: 700; }
+#target { color: #888; font-size: 1rem; }
+#mash { width: 200px; height: 200px; border-radius: 50%; background: #e74c3c; color: #fff;
+        font-size: 1.4rem; font-weight: 900; border: none; cursor: pointer;
+        box-shadow: 0 8px 0 #a93226; transition: transform 0.05s, box-shadow 0.05s; }
+#mash:active { transform: translateY(4px); box-shadow: 0 4px 0 #a93226; }
+#mash:disabled { background: #555; box-shadow: 0 8px 0 #333; cursor: default; }
+#result { font-size: 1.1rem; min-height: 1.5em; text-align: center; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>👊 Button Mash</h1>
+<div id="timer">5.0</div>
+<div id="count">0</div>
+<div id="target">clicks</div>
+<button id="mash">MASH!</button>
+<div id="result">Click the button to start!</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const timerEl = document.getElementById('timer');
+const countEl = document.getElementById('count');
+const mashBtn = document.getElementById('mash');
+const resultEl = document.getElementById('result');
+const TARGET = 5000, DURATION = 5;
+let clicks = 0, timeLeft = DURATION, running = false, interval = null, best = 0;
+
+mashBtn.addEventListener('click', () => {
+  if (!running) {
+    running = true; clicks = 0; timeLeft = DURATION;
+    countEl.textContent = 0;
+    timerEl.textContent = DURATION + '.0';
+    resultEl.textContent = '';
+    interval = setInterval(() => {
+      timeLeft -= 0.1;
+      timerEl.textContent = Math.max(0, timeLeft).toFixed(1);
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        running = false;
+        mashBtn.disabled = false;
+        if (clicks > best) best = clicks;
+        resultEl.textContent = `${clicks} clicks in 5s! Best: ${best} | ${clicks >= 50 ? '🏆 Champion!' : clicks >= 30 ? '💪 Nice!' : '😅 Keep trying!'}`;
+      }
+    }, 100);
+  }
+  if (running) { clicks++; countEl.textContent = clicks; }
+});
+</script>
+</body>
+</html>

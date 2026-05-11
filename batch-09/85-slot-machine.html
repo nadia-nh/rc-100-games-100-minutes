@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Slot Machine</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a0a0a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 12px; }
+#machine { background: #2a1a1a; border: 3px solid #8a6020; border-radius: 16px; padding: 20px; width: 340px; }
+h2 { text-align: center; color: #ffd700; font-size: 1.3rem; margin-bottom: 12px; }
+#reels { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
+.reel { width: 80px; height: 80px; background: #0a0a0a; border: 2px solid #6a4010; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center; font-size: 2.8rem;
+        overflow: hidden; position: relative; }
+.reel.spinning { animation: spin 0.1s steps(1) infinite; }
+@keyframes spin { 0%{filter:blur(1px)} 50%{filter:blur(2px)} }
+#payline { height: 3px; background: #ffd700; margin: -44px 0 32px; position: relative; z-index:1; box-shadow:0 0 8px #ffd700; }
+#controls { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 8px; }
+#spin-btn { background: #c0392b; color: #fff; border: none; padding: 10px 28px; cursor: pointer;
+            font: inherit; font-size: 1.1rem; border-radius: 8px; border: 2px solid #e74c3c; }
+#spin-btn:hover { background: #e74c3c; }
+#spin-btn:disabled { background: #555; border-color: #444; cursor: default; }
+.bet-btn { background: #333; color: #eee; border: 1px solid #555; padding: 6px 12px; cursor: pointer; font: inherit; border-radius: 4px; }
+#paytable { font-size: 0.75rem; color: #aaa; text-align: center; line-height: 1.7; }
+#ui { display: flex; gap: 14px; font-size: 0.9rem; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="machine">
+  <h2>🎰 SLOT MACHINE</h2>
+  <div id="reels">
+    <div class="reel" id="r0">🍒</div>
+    <div class="reel" id="r1">🍋</div>
+    <div class="reel" id="r2">🍊</div>
+  </div>
+  <div id="payline"></div>
+  <div id="controls">
+    <button class="bet-btn" onclick="changeBet(-5)">−</button>
+    <span id="bet-display">Bet: 10</span>
+    <button class="bet-btn" onclick="changeBet(5)">+</button>
+    <button id="spin-btn">SPIN</button>
+  </div>
+  <div style="text-align:center;color:#ffd700;margin-bottom:6px">💰 <span id="chips">100</span> chips</div>
+  <div id="result" style="text-align:center;min-height:1.4rem;font-size:0.95rem"></div>
+  <div id="paytable">
+    🍒🍒🍒 = ×3 &nbsp; 🍋🍋🍋 = ×4 &nbsp; 🍊🍊🍊 = ×5<br>
+    🍇🍇🍇 = ×6 &nbsp; ⭐⭐⭐ = ×10 &nbsp; 💎💎💎 = ×25<br>
+    Any 3 same = win · 2 same = ×1.5
+  </div>
+</div>
+<div id="ui">
+  <span id="msg">Pull to win! Match symbols for prizes.</span>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const SYMBOLS=['🍒','🍋','🍊','🍇','⭐','💎'];
+const WEIGHTS=[30,25,20,15,8,2];// rarity
+const MULT={3:{0:3,1:4,2:5,3:6,4:10,5:25},2:1.5};
+
+let chips=100,bet=10,spinning=false;
+const reels=[document.getElementById('r0'),document.getElementById('r1'),document.getElementById('r2')];
+
+function weightedRand(){
+  const total=WEIGHTS.reduce((a,b)=>a+b,0);let r=Math.random()*total;
+  for(let i=0;i<WEIGHTS.length;i++){r-=WEIGHTS[i];if(r<=0)return i;}
+  return WEIGHTS.length-1;
+}
+
+function changeBet(d){if(!spinning){bet=Math.max(5,Math.min(50,bet+d));document.getElementById('bet-display').textContent='Bet: '+bet;}}
+
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+async function spin(){
+  if(spinning||chips<bet)return;
+  chips-=bet;updateChips();spinning=true;
+  document.getElementById('spin-btn').disabled=true;
+  document.getElementById('result').textContent='';
+
+  // animate reels
+  const results=[];
+  const intervals=reels.map((r,i)=>{
+    r.classList.add('spinning');
+    return setInterval(()=>r.textContent=SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)],80);
+  });
+
+  for(let i=0;i<3;i++){
+    await sleep(600+i*400);
+    clearInterval(intervals[i]);
+    const si=weightedRand();results.push(si);
+    reels[i].classList.remove('spinning');reels[i].textContent=SYMBOLS[si];
+  }
+
+  // evaluate
+  let win=0,msg='';
+  if(results[0]===results[1]&&results[1]===results[2]){
+    win=Math.floor(bet*MULT[3][results[0]]);
+    msg=`🎉 THREE ${SYMBOLS[results[0]]}! +${win} chips!`;
+  } else if(results[0]===results[1]||results[1]===results[2]||results[0]===results[2]){
+    win=Math.floor(bet*MULT[2]);
+    msg=`✨ Pair! +${win} chips`;
+  } else msg='No match. Try again!';
+
+  chips+=win;updateChips();
+  document.getElementById('result').textContent=msg;
+  document.getElementById('result').style.color=win>0?'#2ecc71':'#aaa';
+  if(chips<=0){document.getElementById('msg').textContent='Out of chips! Refresh to restart.';}
+  spinning=false;document.getElementById('spin-btn').disabled=chips<bet;
+}
+
+function updateChips(){document.getElementById('chips').textContent=chips;}
+document.getElementById('spin-btn').addEventListener('click',spin);
+</script>
+</body>
+</html>

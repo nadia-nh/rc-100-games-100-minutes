@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nim</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 14px; }
+#board { display: flex; flex-direction: column; gap: 10px; }
+.pile-row { display: flex; gap: 8px; align-items: center; }
+.stone { width: 34px; height: 34px; border-radius: 50%; background: #5a8a5a; cursor: pointer;
+         border: 2px solid #3a6a3a; transition: background 0.1s; }
+.stone:hover { background: #e74c3c; border-color: #c0392b; }
+.stone.selected { background: #e74c3c; border-color: #c0392b; }
+.stone.removed { background: #ccc; border-color: #aaa; cursor: default; pointer-events: none; }
+.pile-label { width: 20px; color: #888; font-size: 0.85rem; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+#confirm { background: #e74c3c; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; display: none; }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="ui">
+  <span id="msg">Select stones from ONE pile then confirm</span>
+  <button id="confirm">Take!</button>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const board=document.getElementById('board'),msg=document.getElementById('msg');
+const btn=document.getElementById('btn'),confirm=document.getElementById('confirm');
+let piles,selPile,selCount,turn,state='idle';
+
+function init(){
+  piles=[3,5,7];selPile=-1;selCount=0;turn='player';state='playing';
+  btn.textContent='Restart';confirm.style.display='none';
+  msg.textContent='Your turn! Take 1+ stones from one pile.';render();
+}
+
+function render(){
+  board.innerHTML='';
+  piles.forEach((count,pi)=>{
+    const row=document.createElement('div');row.className='pile-row';
+    const lbl=document.createElement('div');lbl.className='pile-label';lbl.textContent=pi+1+':';
+    row.appendChild(lbl);
+    for(let i=0;i<Math.max(count,7);i++){
+      const s=document.createElement('div');
+      s.className='stone'+(i>=count?' removed':selPile===pi&&i>=count-selCount?' selected':'');
+      s.onclick=(()=>{const ci=i,pii=pi;return()=>clickStone(pii,ci);})();
+      row.appendChild(s);
+    }
+    board.appendChild(row);
+  });
+}
+
+function clickStone(pi,si){
+  if(turn!=='player'||state!=='playing')return;
+  const count=piles[pi];
+  if(si>=count)return;
+  if(selPile!==-1&&selPile!==pi){selPile=pi;selCount=count-si;}
+  else{selPile=pi;selCount=count-si;}
+  confirm.style.display=selCount>0?'inline':'none';
+  msg.textContent=`Taking ${selCount} from pile ${pi+1}. Confirm?`;
+  render();
+}
+
+function aiMove(){
+  // nim strategy: xor of piles
+  const xor=piles.reduce((a,b)=>a^b,0);
+  let made=false;
+  if(xor!==0){
+    for(let i=0;i<piles.length;i++){
+      const target=piles[i]^xor;
+      if(target<piles[i]){piles[i]=target;made=true;break;}
+    }
+  }
+  if(!made){
+    // random: take 1 from largest
+    const max=Math.max(...piles);
+    const pi=piles.indexOf(max);
+    piles[pi]=Math.max(0,piles[pi]-1);
+  }
+}
+
+confirm.addEventListener('click',()=>{
+  if(selPile===-1||selCount===0)return;
+  piles[selPile]-=selCount;selPile=-1;selCount=0;confirm.style.display='none';
+  if(piles.every(p=>p===0)){endGame('player');return;}
+  turn='ai';msg.textContent='AI is thinking...';render();
+  setTimeout(()=>{
+    aiMove();
+    if(piles.every(p=>p===0)){endGame('ai');return;}
+    turn='player';msg.textContent='Your turn! Take stones from one pile.';render();
+  },600);
+});
+
+function endGame(loser){
+  state='over';
+  // last to take loses (misère nim)
+  msg.textContent=loser==='ai'?'AI took the last stone — You win! 🎉':'You took the last stone — AI wins!';
+  render();
+}
+
+btn.addEventListener('click',init);
+msg.textContent='Press Start to play!';
+</script>
+</body>
+</html>

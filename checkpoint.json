@@ -1,0 +1,17 @@
+{
+  "lastCompletedBatch": 10,
+  "lastCompletedGame": 100,
+  "startedAt": "2026-05-11T00:00:00Z",
+  "batches": {
+    "1": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "2": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "3": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "4": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "5": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "6": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "7": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "8": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "9": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" },
+    "10": { "status": "done", "completedAt": "2026-05-11T00:00:00Z" }
+  }
+}

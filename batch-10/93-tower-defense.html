@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tower Defense</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; cursor: crosshair; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; flex-wrap: wrap; justify-content: center; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 5px 12px; cursor: pointer; font: inherit; border-radius: 3px; }
+button.sel { border-color: #ffd700; color: #ffd700; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">Click path to place towers · Survive 10 waves!</span>
+  <button id="b1" onclick="selectTower(0)">🗼 Basic $50</button>
+  <button id="b2" onclick="selectTower(1)">⚡ Fast $80</button>
+  <button id="b3" onclick="selectTower(2)">💣 Bomb $120</button>
+  <button id="btn">Start Wave</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,T=32,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const COLS=15,ROWS=15;
+
+// Path as grid coords
+const PATH_COORDS=[
+  [0,2],[1,2],[2,2],[3,2],[4,2],[4,3],[4,4],[4,5],[4,6],[4,7],
+  [5,7],[6,7],[7,7],[7,6],[7,5],[7,4],[7,3],[7,2],[8,2],[9,2],[10,2],
+  [10,3],[10,4],[10,5],[10,6],[10,7],[10,8],[10,9],[10,10],
+  [9,10],[8,10],[7,10],[6,10],[5,10],[4,10],[3,10],[2,10],[2,11],[2,12],[2,13],[2,14],
+  [3,14],[4,14],[5,14],[6,14],[7,14],[8,14],[9,14],[10,14],[11,14],[12,14],[13,14],[14,14]
+];
+const pathSet=new Set(PATH_COORDS.map(([c,r])=>`${c},${r}`));
+
+const TOWERS=[
+  {name:'Basic',color:'#3af',range:80,rate:60,dmg:10,cost:50,bullet:'#3af'},
+  {name:'Fast',color:'#fa0',range:70,rate:25,dmg:5,cost:80,bullet:'#fa0'},
+  {name:'Bomb',color:'#f44',range:100,rate:90,dmg:30,cost:120,bullet:'#f44',splash:40},
+];
+
+let towers,enemies,bullets,gold,lives,wave,waveTimer,state='idle',selectedType=0,raf;
+
+function init(){
+  towers=[];enemies=[];bullets=[];gold=200;lives=20;wave=0;waveTimer=0;
+  state='playing';btn.textContent='Next Wave';
+  spawnWave();
+}
+
+function selectTower(t){selectedType=t;['b1','b2','b3'].forEach((id,i)=>document.getElementById(id).className=i===t?'sel':'');}
+
+function spawnWave(){
+  wave++;
+  const count=5+wave*3;
+  for(let i=0;i<count;i++){
+    const hp=20+wave*15;
+    enemies.push({pathIdx:0,progress:0,x:PATH_COORDS[0][0]*T+T/2,y:PATH_COORDS[0][1]*T+T/2,
+      hp,maxHp:hp,spd:0.8+wave*0.05,r:9,dead:false,reached:false});
+  }
+  msg.textContent=`Wave ${wave}/10 · ${count} enemies incoming!`;
+  btn.textContent=wave>=10?'Last Wave!':'Next Wave';
+  btn.disabled=true;
+}
+
+function update(){
+  if(state!=='playing')return;
+  // move enemies along path
+  enemies.forEach(e=>{
+    if(e.dead||e.reached)return;
+    e.progress+=e.spd;
+    const idx=Math.floor(e.progress);
+    if(idx>=PATH_COORDS.length-1){e.reached=true;lives--;if(lives<=0){endGame(false);return;}return;}
+    const [c0,r0]=PATH_COORDS[idx],[c1,r1]=PATH_COORDS[idx+1];
+    const t=e.progress-idx;
+    e.x=(c0+(c1-c0)*t)*T+T/2;e.y=(r0+(r1-r0)*t)*T+T/2;
+  });
+  enemies=enemies.filter(e=>!e.dead&&!e.reached);
+
+  // towers shoot
+  towers.forEach(tw=>{
+    if(tw.cooldown>0){tw.cooldown--;return;}
+    const td=TOWERS[tw.type];
+    const target=enemies.find(e=>Math.hypot(e.x-tw.x,e.y-tw.y)<td.range);
+    if(target){
+      bullets.push({x:tw.x,y:tw.y,tx:target,vx:0,vy:0,dmg:td.dmg,color:td.bullet,splash:td.splash||0,r:4});
+      tw.cooldown=td.rate;
+    }
+  });
+
+  // move bullets
+  bullets.forEach(b=>{
+    const dx=b.tx.x-b.x,dy=b.tx.y-b.y;
+    const d=Math.hypot(dx,dy);
+    if(d<6){
+      if(b.splash>0){
+        enemies.forEach(e=>{if(Math.hypot(e.x-b.tx.x,e.y-b.tx.y)<b.splash)e.hp-=b.dmg;});
+        b.exploded=true;b.splashAnim={x:b.tx.x,y:b.tx.y,r:0,max:b.splash};
+      } else {
+        b.tx.hp-=b.dmg;
+      }
+      if(b.tx.hp<=0&&!b.tx.dead){b.tx.dead=true;gold+=5+wave;}
+      b.hit=true;
+    } else {
+      b.x+=dx/d*5;b.y+=dy/d*5;
+    }
+  });
+  bullets=bullets.filter(b=>!b.hit);
+
+  if(enemies.length===0&&state==='playing'){
+    if(wave>=10){endGame(true);return;}
+    btn.disabled=false;
+    msg.textContent=`Wave ${wave} cleared! Gold: ${gold} · Place towers!`;
+  }
+  if(lives>0&&state==='playing')updateHUD();
+}
+
+function updateHUD(){
+  if(enemies.length>0)msg.textContent=`Wave ${wave}/10 · Lives:${lives} · Gold:${gold} · Enemies:${enemies.length}`;
+}
+
+function draw(){
+  ctx.fillStyle='#1a2a1a';ctx.fillRect(0,0,W,H);
+  // grid
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(pathSet.has(`${c},${r}`)){ctx.fillStyle='#554433';ctx.fillRect(c*T,r*T,T,T);}
+  }
+  // path arrows (subtle)
+  ctx.fillStyle='rgba(255,200,100,0.15)';
+  PATH_COORDS.forEach(([c,r])=>{ctx.fillRect(c*T+2,r*T+2,T-4,T-4);});
+
+  // towers
+  towers.forEach(tw=>{
+    const td=TOWERS[tw.type];
+    ctx.fillStyle=td.color;ctx.beginPath();ctx.arc(tw.x,tw.y,12,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(tw.x,tw.y,td.range,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='14px serif';ctx.textAlign='center';
+    ctx.fillText(tw.type===0?'🗼':tw.type===1?'⚡':'💣',tw.x,tw.y+6);
+  });
+
+  // enemies
+  enemies.forEach(e=>{
+    ctx.fillStyle='#c33';ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='11px serif';ctx.textAlign='center';ctx.fillText('👾',e.x,e.y+4);
+    ctx.fillStyle='#300';ctx.fillRect(e.x-10,e.y-e.r-6,20,3);
+    ctx.fillStyle='#f00';ctx.fillRect(e.x-10,e.y-e.r-6,20*(e.hp/e.maxHp),3);
+  });
+
+  // bullets
+  bullets.forEach(b=>{ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();});
+
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.textAlign='left';
+  ctx.fillText(`Wave ${wave}/10  Lives:${lives}  Gold:${gold}  [${TOWERS[selectedType].name} $${TOWERS[selectedType].cost}]`,4,15);
+
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffd700';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('TOWER DEFENSE',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='13px monospace';
+    ctx.fillText('Click to place towers · Survive 10 waves!',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(won){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#ffd700':'#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'BASE DEFENDED! 🏆':'BASE DESTROYED!',W/2,H/2-16);
+  ctx.fillStyle='#fff';ctx.font='13px monospace';
+  ctx.fillText(`Wave ${wave}/10 · ${lives} lives remaining`,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent=(won?'All waves survived!':'Your base fell!')+` Wave ${wave}`;
+}
+
+canvas.addEventListener('click',e=>{
+  if(state!=='playing')return;
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const gc=Math.floor(mx/T),gr=Math.floor(my/T);
+  if(pathSet.has(`${gc},${gr}`))return;
+  if(towers.find(t=>Math.hypot(t.x-mx,t.y-my)<28))return;
+  const cost=TOWERS[selectedType].cost;
+  if(gold<cost){msg.textContent='Not enough gold!';return;}
+  gold-=cost;
+  towers.push({x:gc*T+T/2,y:gr*T+T/2,type:selectedType,cooldown:0});
+});
+
+btn.addEventListener('click',()=>{
+  if(state==='idle'||state==='over'){init();}
+  else if(state==='playing'&&!btn.disabled){spawnWave();}
+});
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+selectTower(0);
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bingo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a0a2e; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+#header { display: flex; gap: 8px; }
+.col-label { width: 64px; height: 32px; display: flex; align-items: center; justify-content: center;
+             font-size: 1.3rem; font-weight: bold; color: #ffd700; }
+#board { display: grid; grid-template-columns: repeat(5,64px); gap: 4px; }
+.cell { width: 64px; height: 64px; background: #2a1a4a; border: 2px solid #4a3a6a; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: bold;
+        cursor: pointer; user-select: none; transition: background 0.1s; }
+.cell:hover { background: #3a2a5a; }
+.cell.marked { background: #8a2a8a; border-color: #c050c0; color: #fff; }
+.cell.free { background: #4a2a8a; border-color: #8050a0; color: #ffd700; font-size: 0.8rem; }
+.cell.bingo { background: #ffd700; color: #000; border-color: #ffaa00; animation: pulse 0.5s ease-in-out infinite alternate; }
+@keyframes pulse { from{transform:scale(1)} to{transform:scale(1.08)} }
+#called { background: #0a0a1a; border: 1px solid #3a2a5a; border-radius: 8px; padding: 8px 14px;
+          font-size: 0.85rem; max-width: 360px; text-align: center; color: #aaa; min-height: 42px; }
+#called-num { font-size: 2rem; font-weight: bold; color: #ffd700; min-width: 60px; text-align: center; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #4a2a8a; color: #eee; border: 1px solid #7a4aaa; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="header"><div class="col-label">B</div><div class="col-label">I</div><div class="col-label">N</div><div class="col-label">G</div><div class="col-label">O</div></div>
+<div id="board"></div>
+<div style="display:flex;gap:16px;align-items:center">
+  <div id="called-num">?</div>
+  <div id="called">Press Start then Draw Number</div>
+</div>
+<div id="ui">
+  <span id="msg">Mark numbers as they're called · Get 5 in a row!</span>
+  <button id="draw-btn" disabled>Draw Number</button>
+  <button id="btn">New Card</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const RANGES=[[1,15],[16,30],[31,45],[46,60],[61,75]];
+let card,marked,bag,calledNums,state='idle';
+
+function randInt(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+
+function genCard(){
+  const c=[];
+  for(let col=0;col<5;col++){
+    const[lo,hi]=RANGES[col];const pool=[];
+    for(let n=lo;n<=hi;n++)pool.push(n);
+    for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+    for(let row=0;row<5;row++)c.push(col===2&&row===2?0:pool[row]);
+  }
+  return c;
+}
+
+function init(){
+  card=genCard();marked=Array(25).fill(false);marked[12]=true;// free space
+  bag=[];for(let n=1;n<=75;n++)bag.push(n);for(let i=bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]];}
+  calledNums=[];state='playing';
+  document.getElementById('btn').textContent='New Card';document.getElementById('draw-btn').disabled=false;
+  document.getElementById('called-num').textContent='?';document.getElementById('called').textContent='Ready! Draw your first number.';
+  document.getElementById('msg').textContent='Mark numbers · 5 in a row = BINGO!';
+  render();
+}
+
+function draw(){
+  if(!bag.length||state!=='playing')return;
+  const n=bag.pop();calledNums.push(n);
+  document.getElementById('called-num').textContent=n;
+  // auto-mark if on card
+  card.forEach((v,i)=>{if(v===n)marked[i]=true;});
+  const col=Math.floor((n-1)/15);const colName='BINGO'[col];
+  document.getElementById('called').textContent=`Called: ${calledNums.slice(-8).join(' · ')}`;
+  if(checkBingo()){endGame();return;}
+  document.getElementById('msg').textContent=`${calledNums.length} numbers called · Check your card!`;
+  render();
+}
+
+function cellClick(i){
+  if(state!=='playing')return;
+  // manual mark (in case auto-mark missed — shouldn't happen but nice UX)
+  if(calledNums.includes(card[i])||i===12){marked[i]=!marked[i];if(i===12)marked[i]=true;}
+  if(checkBingo()){endGame();return;}
+  render();
+}
+
+function checkBingo(){
+  const lines=[];
+  for(let r=0;r<5;r++)lines.push([r*5,r*5+1,r*5+2,r*5+3,r*5+4]);
+  for(let c=0;c<5;c++)lines.push([c,c+5,c+10,c+15,c+20]);
+  lines.push([0,6,12,18,24]);lines.push([4,8,12,16,20]);
+  return lines.some(l=>l.every(i=>marked[i]));
+}
+
+function getBingoLines(){
+  const lines=[];
+  const checks=[];
+  for(let r=0;r<5;r++)checks.push([r*5,r*5+1,r*5+2,r*5+3,r*5+4]);
+  for(let c=0;c<5;c++)checks.push([c,c+5,c+10,c+15,c+20]);
+  checks.push([0,6,12,18,24]);checks.push([4,8,12,16,20]);
+  const winning=new Set();
+  checks.forEach(l=>{if(l.every(i=>marked[i]))l.forEach(i=>winning.add(i));});
+  return winning;
+}
+
+function render(){
+  const winning=state==='over'?getBingoLines():new Set();
+  const board=document.getElementById('board');board.innerHTML='';
+  card.forEach((v,i)=>{
+    const d=document.createElement('div');
+    let cls='cell';
+    if(i===12)cls+=' free';
+    else if(winning.has(i))cls+=' bingo';
+    else if(marked[i])cls+=' marked';
+    d.className=cls;d.textContent=v===0?'FREE':v;
+    d.onclick=()=>cellClick(i);board.appendChild(d);
+  });
+}
+
+function endGame(){
+  state='over';document.getElementById('draw-btn').disabled=true;
+  document.getElementById('msg').textContent=`🎉 BINGO! In ${calledNums.length} calls!`;
+  render();
+}
+
+document.getElementById('draw-btn').addEventListener('click',draw);
+document.getElementById('btn').addEventListener('click',init);
+render();
+</script>
+</body>
+</html>

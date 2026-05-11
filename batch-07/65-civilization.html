@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Civilization Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a2a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+#game { width: 480px; display: flex; flex-direction: column; gap: 8px; }
+h2 { text-align: center; font-size: 1.1rem; color: #ffd700; }
+.panel { background: #0a1a0a; border: 1px solid #2a4a2a; border-radius: 6px; padding: 10px; }
+#resources { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; font-size: 0.85rem; }
+.res { background: #1a2a1a; border-radius: 4px; padding: 6px; text-align: center; }
+.res span { display: block; font-size: 1.1rem; font-weight: bold; color: #ffd700; }
+#buildings { display: flex; flex-direction: column; gap: 4px; }
+.bld { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px;
+       background: #1a2a1a; border-radius: 4px; font-size: 0.85rem; }
+.bld button { background: #2a5a2a; color: #eee; border: none; padding: 3px 10px; cursor: pointer;
+              font: inherit; border-radius: 3px; font-size: 0.8rem; }
+.bld button:disabled { background: #333; color: #666; cursor: default; }
+#turn-btn { width: 100%; padding: 10px; background: #4a6a2a; color: #fff; border: none;
+            cursor: pointer; font: inherit; border-radius: 6px; font-size: 1rem; }
+#turn-btn:hover { background: #5a8a3a; }
+#log { height: 70px; overflow-y: auto; font-size: 0.78rem; color: #8a8; }
+#ui { display: flex; gap: 14px; font-size: 0.9rem; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="game">
+  <h2>⚔️ CIVILIZATION LITE</h2>
+  <div class="panel" id="resources"></div>
+  <div class="panel"><div id="buildings"></div></div>
+  <button id="turn-btn">⏩ End Turn</button>
+  <div class="panel"><div id="log"></div></div>
+</div>
+<div id="ui">
+  <span id="msg">Build up your civilization · reach turn 30 to win!</span>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+let res,buildings,turn,logs,state='playing';
+
+const BUILDINGS=[
+  {name:'Farm',desc:'+3 food/turn',cost:{food:5,wood:8},effect:{food:3},count:0},
+  {name:'Lumber Mill',desc:'+4 wood/turn',cost:{food:8,gold:5},effect:{wood:4},count:0},
+  {name:'Mine',desc:'+3 gold/turn',cost:{wood:10,food:5},effect:{gold:3},count:0},
+  {name:'Barracks',desc:'+2 army/turn',cost:{wood:15,gold:10},effect:{army:2},count:0},
+  {name:'Market',desc:'+5 gold/turn',cost:{wood:20,gold:15},effect:{gold:5},count:0},
+  {name:'Temple',desc:'+3 culture/turn',cost:{gold:20,food:10},effect:{culture:3},count:0},
+  {name:'Library',desc:'+4 science/turn',cost:{gold:25,wood:15},effect:{science:4},count:0},
+  {name:'Palace',desc:'+2 all/turn',cost:{gold:60,wood:40,food:30},effect:{food:2,wood:2,gold:2,culture:2,science:2},count:0},
+];
+
+function init(){
+  res={food:20,wood:15,gold:10,army:0,culture:0,science:0};
+  buildings=BUILDINGS.map(b=>({...b,count:0,effect:{...b.effect},cost:{...b.cost}}));
+  turn=1;logs=[];state='playing';render();
+}
+
+function addLog(t){logs.push(t);if(logs.length>20)logs.shift();
+  const d=document.getElementById('log');d.innerHTML=logs.map(l=>`<div>${l}</div>`).join('');d.scrollTop=d.scrollHeight;}
+
+function canAfford(b){return Object.entries(b.cost).every(([k,v])=>res[k]>=v*Math.pow(1.4,b.count));}
+
+function build(i){
+  const b=buildings[i];
+  const actualCost={};
+  Object.entries(b.cost).forEach(([k,v])=>{actualCost[k]=Math.floor(v*Math.pow(1.4,b.count));});
+  if(!canAfford(b))return;
+  Object.entries(actualCost).forEach(([k,v])=>res[k]-=v);
+  b.count++;addLog(`Built ${b.name} #${b.count}`);render();
+}
+
+function endTurn(){
+  if(state!=='playing')return;
+  // produce
+  const prod={food:2,wood:2,gold:1};
+  buildings.forEach(b=>b.count>0&&Object.entries(b.effect).forEach(([k,v])=>{prod[k]=(prod[k]||0)+v*b.count;}));
+  Object.entries(prod).forEach(([k,v])=>{res[k]=(res[k]||0)+v;});
+  // random event
+  if(Math.random()<0.25){
+    const events=[
+      ()=>{res.food=Math.max(0,res.food-8);addLog('🌧 Drought! Lost 8 food.');},
+      ()=>{res.gold+=12;addLog('💰 Trade windfall! +12 gold.');},
+      ()=>{res.army=Math.max(0,res.army-5);addLog('⚔️ Barbarian raid! Lost 5 army.');},
+      ()=>{res.food+=10;addLog('🌾 Harvest festival! +10 food.');},
+      ()=>{res.science+=8;addLog('📚 Discovery! +8 science.');},
+    ];
+    events[Math.floor(Math.random()*events.length)]();
+  }
+  turn++;
+  if(turn>30){endGame(true);return;}
+  addLog(`Turn ${turn} — Food:${Math.floor(res.food)} Wood:${Math.floor(res.wood)} Gold:${Math.floor(res.gold)}`);
+  render();
+}
+
+function fmt(n){return Math.floor(n);}
+
+function render(){
+  const keys=['food','wood','gold','army','culture','science'];
+  const icons={food:'🌾',wood:'🪵',gold:'💰',army:'⚔️',culture:'🎭',science:'🔬'};
+  document.getElementById('resources').innerHTML=keys.map(k=>
+    `<div class="res">${icons[k]} ${k}<span>${fmt(res[k])}</span></div>`).join('');
+  const bDiv=document.getElementById('buildings');bDiv.innerHTML='';
+  buildings.forEach((b,i)=>{
+    const cost=Object.entries(b.cost).map(([k,v])=>`${k}:${Math.floor(v*Math.pow(1.4,b.count))}`).join(' ');
+    const d=document.createElement('div');d.className='bld';
+    d.innerHTML=`<div><b>${b.name}</b>(${b.count}) <span style="color:#8a8;font-size:0.78rem">${b.desc}</span><br><span style="font-size:0.75rem;color:#aaa">${cost}</span></div>`;
+    const btn=document.createElement('button');btn.textContent='Build';btn.disabled=!canAfford(b)||state!=='playing';
+    btn.onclick=()=>build(i);d.appendChild(btn);bDiv.appendChild(d);
+  });
+  document.getElementById('msg').textContent=`Turn ${turn}/30 · Score: ${Math.floor(res.culture+res.science+res.army)}`;
+}
+
+function endGame(won){
+  state='over';
+  const score=Math.floor(res.culture+res.science+res.army+res.gold);
+  document.getElementById('msg').textContent=won?`You survived 30 turns! Score: ${score} 🎉`:'Game over!';
+  document.getElementById('turn-btn').disabled=true;
+}
+
+document.getElementById('turn-btn').addEventListener('click',endTurn);
+init();addLog('Your civilization begins! Turn 1');
+</script>
+</body>
+</html>

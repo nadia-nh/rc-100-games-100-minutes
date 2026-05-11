@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Zelda-like Room</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">WASD move · Space attack · Clear all enemies!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,T=32,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const COLS=15,ROWS=15;
+
+// Tile types: 0=floor, 1=wall
+function makeRoom(){
+  const map=Array(ROWS).fill(null).map(()=>Array(COLS).fill(0));
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(r===0||r===ROWS-1||c===0||c===COLS-1)map[r][c]=1;
+  }
+  // random inner walls
+  for(let i=0;i<12;i++){
+    const r=2+Math.floor(Math.random()*(ROWS-4)),c=2+Math.floor(Math.random()*(COLS-4));
+    const len=2+Math.floor(Math.random()*3),horiz=Math.random()<0.5;
+    for(let j=0;j<len;j++){const nr=horiz?r:r+j,nc=horiz?c+j:c;if(nr>1&&nr<ROWS-2&&nc>1&&nc<COLS-2)map[nr][nc]=1;}
+  }
+  return map;
+}
+
+let map,player,enemies,sword,keys,state='idle',raf,room,hp,maxHp;
+
+function init(){
+  room=1;hp=6;maxHp=6;newRoom();
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function newRoom(){
+  map=makeRoom();
+  player={x:7*T+T/2,y:7*T+T/2,r:10,vx:0,vy:0,dir:0,attackTimer:0,invincible:0};
+  enemies=[];sword=null;keys={};
+  const count=2+room;
+  for(let i=0;i<count;i++){
+    let ex,ey;
+    do{ex=(2+Math.floor(Math.random()*(COLS-4)))*T+T/2;ey=(2+Math.floor(Math.random()*(ROWS-4)))*T+T/2;}
+    while(map[Math.floor(ey/T)][Math.floor(ex/T)]||Math.hypot(ex-player.x,ey-player.y)<80);
+    enemies.push({x:ex,y:ey,r:11,vx:0,vy:0,hp:2,moveTimer:0,hue:Math.floor(Math.random()*60+10)});
+  }
+}
+
+function tileAt(x,y){const r=Math.floor(y/T),c=Math.floor(x/T);return(r>=0&&r<ROWS&&c>=0&&c<COLS)?map[r][c]:1;}
+
+function moveWithCollide(obj,dx,dy){
+  obj.x+=dx;if(tileAt(obj.x-obj.r,obj.y)||tileAt(obj.x+obj.r,obj.y))obj.x-=dx;
+  obj.y+=dy;if(tileAt(obj.x,obj.y-obj.r)||tileAt(obj.x,obj.y+obj.r))obj.y-=dy;
+}
+
+function update(){
+  if(state!=='playing')return;
+  const spd=2.5;let dx=0,dy=0;
+  if(keys['KeyA']||keys['ArrowLeft']){dx=-spd;player.dir=2;}
+  if(keys['KeyD']||keys['ArrowRight']){dx=spd;player.dir=0;}
+  if(keys['KeyW']||keys['ArrowUp']){dy=-spd;player.dir=3;}
+  if(keys['KeyS']||keys['ArrowDown']){dy=spd;player.dir=1;}
+  if(dx&&dy){dx*=0.707;dy*=0.707;}
+  moveWithCollide(player,dx,dy);
+  if(player.attackTimer>0)player.attackTimer--;
+  if(player.invincible>0)player.invincible--;
+
+  // sword
+  if(keys['Space']&&player.attackTimer===0){
+    const dirs=[[1,0],[0,1],[-1,0],[0,-1]];const[sdx,sdy]=dirs[player.dir];
+    sword={x:player.x+sdx*24,y:player.y+sdy*24,r:14,life:14,dx:sdx,dy:sdy};
+    player.attackTimer=18;
+  }
+  if(sword){sword.life--;if(sword.life<=0)sword=null;}
+
+  // enemies
+  enemies.forEach(e=>{
+    e.moveTimer++;
+    if(e.moveTimer%20===0){const a=Math.atan2(player.y-e.y,player.x-e.x);e.vx=Math.cos(a)*1.2;e.vy=Math.sin(a)*1.2;}
+    moveWithCollide(e,e.vx,e.vy);
+    // sword hit
+    if(sword&&Math.hypot(e.x-sword.x,e.y-sword.y)<e.r+sword.r){
+      e.hp--;sword=null;
+      if(e.hp<=0)e.dead=true;
+    }
+    // damage player
+    if(player.invincible===0&&Math.hypot(e.x-player.x,e.y-player.y)<e.r+player.r){
+      hp--;player.invincible=60;
+      if(hp<=0){endGame(false);return;}
+    }
+  });
+  enemies=enemies.filter(e=>!e.dead);
+  if(!enemies.length){room++;if(room>5){endGame(true);return;}newRoom();
+    msg.textContent=`Room ${room}/5 cleared! Entering next...`;}
+  else msg.textContent=`Room ${room}/5 · HP: ${'❤️'.repeat(hp)}${'🖤'.repeat(maxHp-hp)} · Enemies: ${enemies.length}`;
+}
+
+function draw(){
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  // tiles
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    ctx.fillStyle=map[r][c]?'#444':'#2a3a2a';ctx.fillRect(c*T,r*T,T,T);
+    if(!map[r][c]){ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fillRect(c*T,r*T,T,1);ctx.fillRect(c*T,r*T,1,T);}
+  }
+  // enemies
+  enemies.forEach(e=>{
+    ctx.fillStyle=`hsl(${e.hue},70%,45%)`;ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='12px serif';ctx.textAlign='center';ctx.fillText('👾',e.x,e.y+5);
+    // hp bar
+    ctx.fillStyle='#300';ctx.fillRect(e.x-12,e.y-e.r-8,24,4);
+    ctx.fillStyle='#f00';ctx.fillRect(e.x-12,e.y-e.r-8,24*(e.hp/2),4);
+  });
+  // sword
+  if(sword){ctx.fillStyle='rgba(255,255,100,0.8)';ctx.beginPath();ctx.arc(sword.x,sword.y,sword.r,0,Math.PI*2);ctx.fill();}
+  // player
+  const flash=player.invincible>0&&Math.floor(player.invincible/4)%2;
+  if(!flash){
+    ctx.fillStyle='#3af';ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='14px serif';ctx.textAlign='center';ctx.fillText('🧝',player.x,player.y+6);
+  }
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.textAlign='left';
+  ctx.fillText(`Room ${room}/5  ${'❤️'.repeat(hp)}${'🖤'.repeat(maxHp-hp)}  Enemies: ${enemies.length}  Space=sword`,4,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#3af';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('ZELDA-LIKE ROOM',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='13px monospace';
+    ctx.fillText('WASD move · Space attack · Clear 5 rooms!',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(won){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#ffd700':'#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'HERO WINS! 🎉':'DEFEATED!',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText(`Room ${room}/5`,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent=(won?'All rooms cleared!':'You were defeated!')+` Room ${room}/5`;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

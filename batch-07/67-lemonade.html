@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lemonade Stand</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #fff9e6; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 10px; }
+#game { width: 440px; display: flex; flex-direction: column; gap: 8px; }
+h2 { text-align: center; font-size: 1.1rem; color: #e67e22; }
+.panel { background: #fff3cc; border: 1px solid #f0c040; border-radius: 8px; padding: 10px; }
+.row { display: flex; justify-content: space-between; align-items: center; margin: 4px 0; font-size: 0.9rem; }
+input[type=range] { width: 160px; }
+input[type=number] { width: 70px; padding: 3px; border: 1px solid #ccc; border-radius: 3px; font: inherit; text-align: center; }
+#sell-btn { width: 100%; padding: 12px; background: #f1c40f; color: #333; border: none; font: inherit;
+            font-size: 1rem; font-weight: bold; cursor: pointer; border-radius: 8px; border: 2px solid #e67e22; }
+#sell-btn:hover { background: #f39c12; }
+#weather { font-size: 1.5rem; text-align: center; }
+#ui { display: flex; gap: 14px; font-size: 0.9rem; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+#log { height: 70px; overflow-y: auto; font-size: 0.8rem; color: #666; }
+</style>
+</head>
+<body>
+<div id="game">
+  <h2>🍋 LEMONADE STAND</h2>
+  <div class="panel">
+    <div class="row"><span id="weather">☀️ Sunny</span><span id="day-info">Day 1/10</span></div>
+    <div class="row"><b>💰 Money:</b> <span id="money">$10.00</span></div>
+    <div class="row"><b>🍋 Lemons:</b> <span id="lemons">0</span> <button onclick="buyLemons()">Buy 10 ($2)</button></div>
+    <div class="row"><b>🧊 Ice:</b> <span id="ice">0</span> <button onclick="buyIce()">Buy 10 ($1)</button></div>
+    <div class="row"><b>🥤 Cups:</b> <span id="cups">0</span> <button onclick="buyCups()">Buy 20 ($1)</button></div>
+  </div>
+  <div class="panel">
+    <div class="row"><b>Price per cup:</b> <input type="number" id="price" value="0.50" min="0.10" max="5.00" step="0.10"></div>
+    <div class="row"><b>Lemons per cup:</b> <input type="range" id="lemon-ratio" min="1" max="4" value="2"> <span id="lr-val">2</span></div>
+    <div class="row"><b>Ice per cup:</b> <input type="range" id="ice-ratio" min="1" max="4" value="2"> <span id="ir-val">2</span></div>
+    <div class="row"><b>Make cups:</b> <input type="number" id="make" value="10" min="1" max="100"></div>
+  </div>
+  <button id="sell-btn">🍹 Open for Business!</button>
+  <div class="panel"><div id="log"></div></div>
+</div>
+<div id="ui">
+  <span id="msg">Buy supplies, set price, sell lemonade!</span>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const WEATHERS=[
+  {icon:'☀️',name:'Sunny',demand:1.2,heat:1.3},
+  {icon:'⛅',name:'Cloudy',demand:0.9,heat:0.8},
+  {icon:'🌧️',name:'Rainy',demand:0.4,heat:0.5},
+  {icon:'🌡️',name:'Hot!',demand:1.5,heat:1.8},
+  {icon:'🌬️',name:'Windy',demand:0.7,heat:0.6},
+];
+let money=10,lemons=0,ice=0,cups=0,day=1,logs=[],weather=WEATHERS[0];
+
+function addLog(t){logs.push(t);if(logs.length>15)logs.shift();
+  const d=document.getElementById('log');d.innerHTML=logs.map(l=>`<div>${l}</div>`).join('');d.scrollTop=d.scrollHeight;}
+
+function buyLemons(){if(money>=2){money-=2;lemons+=10;addLog('Bought 10 lemons for $2');render();}}
+function buyIce(){if(money>=1){money-=1;ice+=10;addLog('Bought 10 ice for $1');render();}}
+function buyCups(){if(money>=1){money-=1;cups+=20;addLog('Bought 20 cups for $1');render();}}
+
+function sell(){
+  const price=parseFloat(document.getElementById('price').value)||0.5;
+  const lr=parseInt(document.getElementById('lemon-ratio').value)||2;
+  const ir=parseInt(document.getElementById('ice-ratio').value)||2;
+  const make=parseInt(document.getElementById('make').value)||10;
+  const canMake=Math.min(make,Math.floor(lemons/lr),Math.floor(ice/ir),cups);
+  if(canMake<=0){addLog('Not enough supplies!');return;}
+  lemons-=canMake*lr;ice-=canMake*ir;cups-=canMake;
+  // demand calculation
+  const quality=(lr+ir)/4;// 0.5-2.0
+  const priceAppeal=price<0.5?1.3:price<1?1:price<2?0.7:0.4;
+  const base=weather.demand*priceAppeal*quality*15;
+  const sold=Math.min(canMake,Math.max(0,Math.floor(base+Math.random()*base*0.4)));
+  const revenue=sold*price;money+=revenue;
+  addLog(`Day ${day}: Sold ${sold}/${canMake} cups @ $${price.toFixed(2)} = $${revenue.toFixed(2)}`);
+  day++;
+  if(day>10){endGame();return;}
+  weather=WEATHERS[Math.floor(Math.random()*WEATHERS.length)];
+  render();
+}
+
+function render(){
+  document.getElementById('money').textContent='$'+money.toFixed(2);
+  document.getElementById('lemons').textContent=lemons;
+  document.getElementById('ice').textContent=ice;
+  document.getElementById('cups').textContent=cups;
+  document.getElementById('weather').textContent=weather.icon+' '+weather.name;
+  document.getElementById('day-info').textContent=`Day ${day}/10`;
+  document.getElementById('lr-val').textContent=document.getElementById('lemon-ratio').value;
+  document.getElementById('ir-val').textContent=document.getElementById('ice-ratio').value;
+}
+
+function endGame(){
+  document.getElementById('sell-btn').disabled=true;
+  document.getElementById('msg').textContent=`10 days done! Final earnings: $${money.toFixed(2)} ${money>=25?'🎉 Great run!':'Keep practicing!'}`;
+  addLog(`=== Final money: $${money.toFixed(2)} ===`);
+}
+
+document.getElementById('sell-btn').addEventListener('click',sell);
+document.getElementById('lemon-ratio').addEventListener('input',render);
+document.getElementById('ice-ratio').addEventListener('input',render);
+render();addLog('Welcome! Buy supplies and open your stand.');
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Anagram</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f2027; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 16px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 24px; color: #aaa; font-size: 1rem; }
+#letters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; min-height: 60px; }
+.letter-tile { width: 52px; height: 52px; background: #e67e22; color: #fff; border-radius: 8px;
+               display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+               font-weight: 900; cursor: pointer; user-select: none; transition: opacity 0.1s, transform 0.1s; }
+.letter-tile.used { opacity: 0.25; pointer-events: none; }
+.letter-tile:hover { transform: translateY(-4px); }
+#answer { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; min-height: 60px; }
+.ans-tile { width: 52px; height: 52px; background: #2c3e50; color: #fff; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+            font-weight: 900; cursor: pointer; border: 2px solid #4a6080; }
+.ans-tile:hover { background: #3d5166; }
+#hint { color: #888; font-size: 0.9rem; min-height: 1.2em; }
+#status { font-size: 1.1rem; font-weight: 700; min-height: 1.5em; }
+#controls { display: flex; gap: 10px; }
+button { background: #2980b9; color: #fff; border: none; padding: 10px 20px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+#submit-btn { background: #27ae60; }
+#clear-btn  { background: #7f8c8d; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>🔤 Anagram</h1>
+<div id="info"><span>Score: <b id="score">0</b></span><span>Round: <b id="round">1</b>/10</span></div>
+<div id="hint"></div>
+<div id="letters"></div>
+<div id="answer"></div>
+<div id="status">Build the word using the tiles!</div>
+<div id="controls">
+  <button id="clear-btn">Clear</button>
+  <button id="submit-btn">Submit ✓</button>
+  <button id="skip-btn">Skip →</button>
+</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const WORDS=[
+  {w:'PLANET',h:'Orbits a star'},
+  {w:'GARDEN',h:'Where flowers grow'},
+  {w:'FROZEN',h:'Very cold, like ice'},
+  {w:'CASTLE',h:'Medieval fortress'},
+  {w:'BRIDGE',h:'Connects two sides'},
+  {w:'FOREST',h:'Many trees together'},
+  {w:'DRAGON',h:'Mythical fire-breathing creature'},
+  {w:'SILVER',h:'A precious metal'},
+  {w:'WINTER',h:'Cold season'},
+  {w:'ANCHOR',h:'Keeps a ship in place'},
+  {w:'BOTTLE',h:'Container for liquids'},
+  {w:'CANDLE',h:'Wax stick with flame'},
+  {w:'GENTLE',h:'Soft and kind'},
+  {w:'HUNTER',h:'Someone who tracks animals'},
+  {w:'JUNGLE',h:'Dense tropical forest'},
+];
+let queue, idx, score, current, answerIdx, usedTiles;
+const lettersEl=document.getElementById('letters'), answerEl=document.getElementById('answer');
+const hintEl=document.getElementById('hint'), statusEl=document.getElementById('status');
+const scoreEl=document.getElementById('score'), roundEl=document.getElementById('round');
+
+function shuffle(s){return s.split('').sort(()=>Math.random()-0.5);}
+function newGame(){queue=[...WORDS].sort(()=>Math.random()-0.5).slice(0,10);idx=0;score=0;scoreEl.textContent=0;nextWord();}
+function nextWord(){
+  if(idx>=queue.length){statusEl.textContent=`🏁 Done! Score: ${score}/100`;return;}
+  current=queue[idx].w; idx++;
+  roundEl.textContent=idx; hintEl.textContent='💡 '+queue[idx-1].h;
+  let sc=shuffle(current); while(sc===current)sc=shuffle(current);
+  usedTiles=Array(sc.length).fill(false); answerIdx=[];
+  statusEl.textContent='Build the word!';
+  lettersEl.innerHTML=''; answerEl.innerHTML='';
+  sc.split('').forEach((l,i)=>{
+    const t=document.createElement('div'); t.className='letter-tile'; t.textContent=l; t.dataset.i=i;
+    t.addEventListener('click',()=>pickLetter(i,l,t));
+    lettersEl.appendChild(t);
+  });
+}
+function pickLetter(i,l,tile){
+  if(usedTiles[i])return;
+  usedTiles[i]=true; tile.classList.add('used');
+  answerIdx.push(i);
+  const at=document.createElement('div'); at.className='ans-tile'; at.textContent=l; at.dataset.src=i;
+  at.addEventListener('click',()=>removeLetter(i,at));
+  answerEl.appendChild(at);
+}
+function removeLetter(srcI,at){
+  usedTiles[srcI]=false;
+  answerIdx=answerIdx.filter(x=>x!==srcI);
+  lettersEl.querySelectorAll('.letter-tile').forEach(t=>{if(parseInt(t.dataset.i)===srcI)t.classList.remove('used');});
+  at.remove();
+}
+function getAnswer(){return Array.from(answerEl.querySelectorAll('.ans-tile')).map(t=>t.textContent).join('');}
+document.getElementById('submit-btn').addEventListener('click',()=>{
+  const ans=getAnswer();
+  if(ans===current){score+=10;scoreEl.textContent=score;statusEl.textContent='✅ Correct! +10';setTimeout(nextWord,700);}
+  else{statusEl.textContent=`❌ Wrong! The word was ${current}`;setTimeout(nextWord,1200);}
+});
+document.getElementById('clear-btn').addEventListener('click',()=>{
+  usedTiles.fill(false); answerIdx=[];
+  answerEl.innerHTML='';
+  lettersEl.querySelectorAll('.letter-tile').forEach(t=>t.classList.remove('used'));
+});
+document.getElementById('skip-btn').addEventListener('click',()=>{statusEl.textContent=`⏭ Skipped — word was ${current}`;setTimeout(nextWord,900);});
+newGame();
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Number Crush</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a0a2e; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+#board { display: grid; grid-template-columns: repeat(7,52px); gap: 3px; }
+.cell { width: 52px; height: 52px; border-radius: 8px; display: flex; align-items: center;
+        justify-content: center; font-size: 1.3rem; font-weight: bold; cursor: pointer;
+        border: 2px solid rgba(255,255,255,0.1); transition: transform 0.1s; user-select: none; }
+.cell:hover { transform: scale(1.08); border-color: rgba(255,255,255,0.5); }
+.cell.sel { transform: scale(1.12); border-color: #fff; box-shadow: 0 0 10px #fff; }
+.cell.matched { animation: pop 0.3s ease-out; }
+@keyframes pop { 0%{transform:scale(1.2)} 100%{transform:scale(0)} }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<div id="ui">
+  <span id="msg">Swap adjacent numbers · Match 3+ of the same!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const COLS=7,ROWS=7,board=document.getElementById('board'),msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const VALS=5;// numbers 1-5
+const COLORS=['','#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6'];
+let grid,sel,score,moves,state='idle';
+
+function randVal(){return 1+Math.floor(Math.random()*VALS);}
+function init(){
+  do{grid=Array(ROWS*COLS).fill(0).map(randVal);}while(findMatches().length>0);
+  sel=null;score=0;moves=20;state='playing';btn.textContent='Restart';
+  msg.textContent='Moves: 20 · Score: 0';render();
+}
+
+function idx(r,c){return r*COLS+c;}
+
+function findMatches(){
+  const matched=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS-2;c++){
+    if(grid[idx(r,c)]&&grid[idx(r,c)]===grid[idx(r,c+1)]&&grid[idx(r,c)]===grid[idx(r,c+2)]){
+      matched.add(idx(r,c));matched.add(idx(r,c+1));matched.add(idx(r,c+2));
+    }
+  }
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS-2;r++){
+    if(grid[idx(r,c)]&&grid[idx(r,c)]===grid[idx(r+1,c)]&&grid[idx(r,c)]===grid[idx(r+2,c)]){
+      matched.add(idx(r,c));matched.add(idx(r+1,c));matched.add(idx(r+2,c));
+    }
+  }
+  return[...matched];
+}
+
+function clearAndFall(){
+  let matched=findMatches();
+  if(!matched.length)return false;
+  score+=matched.length*10;matched.forEach(i=>grid[i]=0);
+  // fall
+  for(let c=0;c<COLS;c++){
+    let empty=ROWS-1;
+    for(let r=ROWS-1;r>=0;r--){
+      if(grid[idx(r,c)]){grid[idx(empty,c)]=grid[idx(r,c)];if(empty!==r)grid[idx(r,c)]=0;empty--;}
+    }
+    for(let r=empty;r>=0;r--)grid[idx(r,c)]=randVal();
+  }
+  return true;
+}
+
+function swap(i1,i2){
+  [grid[i1],grid[i2]]=[grid[i2],grid[i1]];
+  if(!findMatches().length){[grid[i1],grid[i2]]=[grid[i2],grid[i1]];return false;}
+  moves--;
+  let chain=0;
+  while(clearAndFall())chain++;
+  if(moves<=0){endGame();return true;}
+  msg.textContent=`Moves: ${moves} · Score: ${score}`;
+  return true;
+}
+
+function click(r,c){
+  if(state!=='playing')return;
+  const i=idx(r,c);
+  if(sel===null){sel=i;render();return;}
+  if(sel===i){sel=null;render();return;}
+  const sr=Math.floor(sel/COLS),sc=sel%COLS;
+  if(Math.abs(sr-r)+Math.abs(sc-c)===1){
+    swap(sel,i);sel=null;render();
+  } else {sel=i;render();}
+}
+
+function render(){
+  board.innerHTML='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const i=idx(r,c),v=grid[i];
+    const d=document.createElement('div');d.className='cell'+(sel===i?' sel':'');
+    d.style.background=COLORS[v]||'#333';
+    d.style.color='rgba(255,255,255,0.9)';
+    d.textContent=v;d.onclick=()=>click(r,c);
+    board.appendChild(d);
+  }
+}
+
+function endGame(){
+  state='over';
+  msg.textContent=`Out of moves! Final score: ${score} ${score>=300?'🎉 Amazing!':score>=150?'👍 Good!':'Keep trying!'}`;
+  render();
+}
+
+btn.addEventListener('click',init);render();
+</script>
+</body>
+</html>

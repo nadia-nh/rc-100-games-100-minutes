@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Codename Guess</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #1a1a2e; padding: 20px; }
+h1 { margin-bottom: 14px; }
+#status { font-size: 1rem; font-weight: 600; margin-bottom: 16px; min-height: 1.5em; color: #444; }
+#board { width: min(600px,100%); background: #fff; border: 1px solid #d8d0c0; border-radius: 14px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: grid; gap: 12px; }
+.card { padding: 18px 14px; border: 2px solid #ccc; border-radius: 12px; background: #faf3e8; text-align: center; cursor: pointer; transition: border-color 0.2s, transform 0.2s; }
+.card:hover { transform: translateY(-1px); border-color: #e07b54; }
+.card.selected { border-color: #e07b54; background: #ffe8d5; }
+#controls { margin-top: 16px; display: flex; gap: 10px; }
+button { background: #e07b54; color: #fff; border: none; padding: 10px 22px; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 700; }
+button:hover { background: #c5613c; }
+a { color: #888; font-size: 0.85rem; text-decoration: none; margin-top: 12px; }
+a:hover { color: #555; }
+</style>
+</head>
+<body>
+<h1>Codename Guess</h1>
+<div id="status">Press Start to play.</div>
+<div id="board"></div>
+<div id="controls"><button id="btn">Start</button></div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const statusEl=document.getElementById('status');
+const boardEl=document.getElementById('board');
+const btn=document.getElementById('btn');
+const rounds=[
+  {clue:'Fruit',choices:['Rocket','Orange','Bridge','River'],answer:'Orange'},
+  {clue:'Tool',choices:['Mouse','Hammer','Cloud','Shirt'],answer:'Hammer'},
+  {clue:'Ocean',choices:['Lion','Wave','Stone','Chair'],answer:'Wave'},
+  {clue:'Light',choices:['Shadow','Sun','Mountain','Door'],answer:'Sun'},
+  {clue:'Speed',choices:['Slow','Quick','Warm','Soft'],answer:'Quick'}
+];
+let state='idle',roundIndex=0,score=0,selected='';
+function init(){state='playing';roundIndex=0;score=0;btn.textContent='Restart';statusEl.textContent='Choose the right codename.';renderRound();}
+function renderRound(){const round=rounds[roundIndex];boardEl.innerHTML='';
+  const clue=document.createElement('div');clue.className='card';clue.style.background='#e8f5ff';clue.style.cursor='default';clue.textContent='Clue: '+round.clue;boardEl.appendChild(clue);
+  round.choices.forEach(choice=>{const card=document.createElement('div');card.className='card';card.textContent=choice;card.onclick=()=>selectChoice(choice,card);boardEl.appendChild(card);});
+}
+function selectChoice(choice,card){if(state!=='playing')return;const round=rounds[roundIndex];
+  if(choice===round.answer){score++;roundIndex++;if(roundIndex>=rounds.length){endGame(true);return;}statusEl.textContent='Correct! Next clue.';renderRound();}
+  else{endGame(false);statusEl.textContent='Wrong guess. Game over.';}}
+function endGame(won){state='over';btn.textContent='Play Again';
+  if(won){statusEl.textContent=`Victory! Completed ${score}/${rounds.length} rounds.`;} else {statusEl.textContent=`You scored ${score} / ${rounds.length}.`;}}
+btn.addEventListener('click',init);
+init();
+</script>
+</body>
+</html>

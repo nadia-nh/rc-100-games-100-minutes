@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Odd One Out</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 16px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 24px; font-size: 1.1rem; }
+#grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-width: 400px; }
+.cell { font-size: 2.2rem; cursor: pointer; padding: 6px; border-radius: 8px;
+        text-align: center; transition: background 0.1s; user-select: none; }
+.cell:hover { background: #2a2a4a; }
+.cell.wrong { background: #c0392b; animation: shake 0.3s; }
+.cell.right { background: #27ae60; }
+#status { font-size: 1rem; min-height: 1.4em; }
+button { background: #9b59b6; color: #fff; border: none; padding: 10px 24px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+</style>
+</head>
+<body>
+<h1>🔍 Odd One Out</h1>
+<div id="info"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span></div>
+<div id="grid"></div>
+<div id="status">Find the different one!</div>
+<button id="btn" style="display:none">Play Again</button>
+<a href="../index.html">↩ Gallery</a>
+<script>
+const SETS = [
+  ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼'],
+  ['🍎','🍊','🍋','🍇','🍓','🫐','🍑','🍒'],
+  ['⚽','🏀','🏈','⚾','🎾','🏐','🏉','🥏'],
+  ['🚗','🚕','🚙','🚌','🚎','🏎','🚓','🚑'],
+  ['🌸','🌺','🌻','🌹','💐','🌷','🌼','🌾'],
+];
+const grid = document.getElementById('grid');
+const scoreEl = document.getElementById('score');
+const levelEl = document.getElementById('level');
+const statusEl = document.getElementById('status');
+const btn = document.getElementById('btn');
+let score = 0, level = 1, oddIndex = -1, active = true;
+
+function newRound() {
+  active = true;
+  btn.style.display = 'none';
+  statusEl.textContent = 'Find the different one!';
+  const size = Math.min(6 + level, 36);
+  const cols = Math.ceil(Math.sqrt(size));
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  const setA = SETS[Math.floor(Math.random() * SETS.length)];
+  let setB;
+  do { setB = SETS[Math.floor(Math.random() * SETS.length)]; } while (setB === setA);
+  const mainEmoji = setA[Math.floor(Math.random() * setA.length)];
+  const oddEmoji = setB[Math.floor(Math.random() * setB.length)];
+  oddIndex = Math.floor(Math.random() * size);
+  grid.innerHTML = '';
+  for (let i = 0; i < size; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.textContent = i === oddIndex ? oddEmoji : mainEmoji;
+    cell.dataset.i = i;
+    cell.addEventListener('click', () => onPick(parseInt(cell.dataset.i), cell));
+    grid.appendChild(cell);
+  }
+}
+
+function onPick(i, cell) {
+  if (!active) return;
+  active = false;
+  if (i === oddIndex) {
+    cell.className = 'cell right';
+    score += level;
+    level++;
+    scoreEl.textContent = score;
+    levelEl.textContent = level;
+    statusEl.textContent = '✅ Correct!';
+    setTimeout(newRound, 700);
+  } else {
+    cell.className = 'cell wrong';
+    grid.querySelectorAll('.cell')[oddIndex].className = 'cell right';
+    statusEl.textContent = `❌ Wrong! Score: ${score}`;
+    btn.style.display = '';
+  }
+}
+
+btn.addEventListener('click', () => { score = 0; level = 1; scoreEl.textContent = 0; levelEl.textContent = 1; newRound(); });
+newRound();
+</script>
+</body>
+</html>

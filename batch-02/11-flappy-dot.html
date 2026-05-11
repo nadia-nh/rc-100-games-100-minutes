@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Dot</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 10px; }
+canvas { border: 2px solid #444; cursor: pointer; }
+#ui { display: flex; gap: 16px; align-items: center; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 8px 18px;
+         cursor: pointer; font: inherit; border-radius: 4px; }
+a { color: #666; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="360" height="480"></canvas>
+<div id="ui">
+  <span id="msg">Click or Space to start</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('btn');
+const W = canvas.width, H = canvas.height;
+const PIPE_W = 50, GAP = 140, PIPE_SPEED = 2.5, GRAVITY = 0.45, JUMP = -8;
+let state = 'idle', bird, pipes, score, raf;
+
+function init() {
+  bird = { x: 80, y: H / 2, vy: 0, r: 14 };
+  pipes = [];
+  score = 0;
+  state = 'playing';
+  msg.textContent = 'Score: 0';
+  btn.textContent = 'Restart';
+  cancelAnimationFrame(raf);
+  loop();
+}
+
+function addPipe() {
+  const top = 60 + Math.random() * (H - GAP - 120);
+  pipes.push({ x: W, top, scored: false });
+}
+
+function update() {
+  bird.vy += GRAVITY;
+  bird.y += bird.vy;
+  if (bird.y - bird.r < 0 || bird.y + bird.r > H) { endGame(); return; }
+  if (pipes.length === 0 || pipes[pipes.length - 1].x < W - 200) addPipe();
+  for (const p of pipes) {
+    p.x -= PIPE_SPEED;
+    if (!p.scored && p.x + PIPE_W < bird.x) { p.scored = true; score++; msg.textContent = 'Score: ' + score; }
+    if (bird.x + bird.r > p.x && bird.x - bird.r < p.x + PIPE_W &&
+        (bird.y - bird.r < p.top || bird.y + bird.r > p.top + GAP)) { endGame(); return; }
+  }
+  pipes = pipes.filter(p => p.x + PIPE_W > 0);
+}
+
+function draw() {
+  ctx.fillStyle = '#1a2a3a';
+  ctx.fillRect(0, 0, W, H);
+  // pipes
+  ctx.fillStyle = '#2ecc71';
+  for (const p of pipes) {
+    ctx.fillRect(p.x, 0, PIPE_W, p.top);
+    ctx.fillRect(p.x, p.top + GAP, PIPE_W, H - p.top - GAP);
+  }
+  // bird
+  ctx.beginPath();
+  ctx.arc(bird.x, bird.y, bird.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#f1c40f';
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(bird.x + 5, bird.y - 3, 3, 0, Math.PI * 2);
+  ctx.fill();
+  if (state === 'idle') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('FLAPPY DOT', W/2, H/2 - 20);
+    ctx.font = '16px monospace';
+    ctx.fillText('Click or Space to fly', W/2, H/2 + 20);
+    ctx.textAlign = 'left';
+  }
+}
+
+function loop() { update(); draw(); if (state === 'playing') raf = requestAnimationFrame(loop); }
+
+function flap() {
+  if (state === 'idle' || state === 'over') { init(); return; }
+  if (state === 'playing') bird.vy = JUMP;
+}
+
+function endGame() {
+  state = 'over';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', W/2, H/2 - 20);
+  ctx.font = '18px monospace';
+  ctx.fillText('Score: ' + score, W/2, H/2 + 20);
+  ctx.textAlign = 'left';
+  msg.textContent = 'Game Over — Score: ' + score;
+}
+
+document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+canvas.addEventListener('click', flap);
+btn.addEventListener('click', flap);
+draw();
+</script>
+</body>
+</html>

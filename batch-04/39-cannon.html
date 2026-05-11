@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cannon Ball</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #87ceeb; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 8px; }
+canvas { border: 2px solid #5a8a2a; cursor: crosshair; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #5a5a5a; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #556; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="560" height="380"></canvas>
+<div id="ui">
+  <span id="msg">Click canvas to aim & shoot!</span>
+  <button id="btn">New Level</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=560,H=380,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const G=0.35;
+let state='idle',ball,angle,power,targets,level,shots,raf,shooting=false;
+let mx=W/2,my=H/2;
+
+function initLevel(){
+  level=(level||0)+1;
+  ball=null;shooting=false;shots=5+Math.floor(level/2);
+  targets=[];
+  const n=3+level;
+  for(let i=0;i<n;i++){
+    targets.push({x:280+Math.random()*240,y:100+Math.random()*(H-160),r:14+Math.random()*10,alive:true,color:`hsl(${Math.random()*360},70%,55%)`});
+  }
+  state='aim';msg.textContent=`Level ${level} — ${shots} shots — Click to fire!`;
+}
+
+canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;});
+canvas.addEventListener('click',()=>{
+  if(state==='aim')fireCannon();
+  else if(state==='idle')initLevel();
+});
+
+function fireCannon(){
+  if(shots<=0)return;
+  const cx=50,cy=H-60;
+  const dx=mx-cx,dy=my-cy;
+  const angle=Math.atan2(dy,dx);
+  const power=Math.min(Math.hypot(dx,dy)/10,20);
+  ball={x:cx,y:cy,vx:Math.cos(angle)*power,vy:Math.sin(angle)*power,r:10,trail:[]};
+  shots--;state='flying';cancelAnimationFrame(raf);loop();
+}
+
+function update(){
+  if(state!=='flying')return;
+  ball.trail.push({x:ball.x,y:ball.y});if(ball.trail.length>30)ball.trail.shift();
+  ball.vx*=0.999;ball.vy+=G;
+  ball.x+=ball.vx;ball.y+=ball.vy;
+  // bounce floor
+  if(ball.y+ball.r>=H-40){ball.vy*=-0.6;ball.y=H-40-ball.r;if(Math.abs(ball.vy)<0.5){state='aim';checkWin();return;}}
+  // walls
+  if(ball.x-ball.r<0){ball.x=ball.r;ball.vx*=-0.8;}
+  if(ball.x+ball.r>W){state='aim';checkWin();return;}
+  // hit targets
+  for(const t of targets){
+    if(!t.alive)continue;
+    if(Math.hypot(ball.x-t.x,ball.y-t.y)<ball.r+t.r){
+      t.alive=false;ball.vx*=0.6;ball.vy*=0.6;
+    }
+  }
+  checkWin();
+}
+
+function checkWin(){
+  const alive=targets.filter(t=>t.alive).length;
+  if(!alive){
+    state='win';cancelAnimationFrame(raf);draw();
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 28px monospace';ctx.textAlign='center';
+    ctx.fillText('CLEARED!',W/2,H/2-20);ctx.font='16px monospace';ctx.fillText('Press New Level',W/2,H/2+16);ctx.textAlign='left';
+    msg.textContent='🎉 Level cleared!';return;
+  }
+  if(state==='aim'&&shots<=0){
+    state='lose';cancelAnimationFrame(raf);draw();
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#f44';ctx.font='bold 26px monospace';ctx.textAlign='center';
+    ctx.fillText('OUT OF SHOTS!',W/2,H/2-20);ctx.font='16px monospace';
+    ctx.fillText(alive+' targets left',W/2,H/2+16);ctx.textAlign='left';
+    msg.textContent='😔 '+alive+' targets remain';
+  } else if(state==='aim'){
+    msg.textContent=`Level ${level} — ${shots} shots — ${alive} targets left`;
+  }
+}
+
+function draw(){
+  // Sky
+  ctx.fillStyle='#87ceeb';ctx.fillRect(0,0,W,H);
+  // Ground
+  ctx.fillStyle='#5a8a2a';ctx.fillRect(0,H-40,W,40);
+  ctx.fillStyle='#3a6a1a';ctx.fillRect(0,H-40,W,8);
+  // Cannon
+  const cx=50,cy=H-60;
+  ctx.fillStyle='#444';ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#555';ctx.save();ctx.translate(cx,cy);
+  const dx=mx-cx,dy=my-cy;const ang=Math.atan2(dy,dx);
+  ctx.rotate(ang);ctx.fillRect(8,-8,40,16);ctx.restore();
+  // power indicator
+  const pw=Math.min(Math.hypot(mx-cx,my-cy)/10,20);
+  ctx.fillStyle='rgba(255,200,0,0.3)';ctx.fillRect(cx-10,cy-35,Math.min(pw*5,100),10);
+  ctx.strokeStyle='rgba(255,200,0,0.5)';ctx.strokeRect(cx-10,cy-35,100,10);
+  // targets
+  targets.forEach(t=>{
+    if(!t.alive)return;
+    ctx.fillStyle=t.color;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.stroke();
+  });
+  // ball trail
+  if(ball){
+    ctx.strokeStyle='rgba(255,150,0,0.4)';ctx.lineWidth=2;ctx.beginPath();
+    ball.trail.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+    ctx.fillStyle='#c33';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+  }
+  // aim guide
+  if(state==='aim'){
+    ctx.strokeStyle='rgba(255,255,0,0.25)';ctx.setLineDash([5,10]);ctx.lineWidth=1;
+    let px=cx,py=cy,pvx=Math.cos(ang)*pw,pvy=Math.sin(ang)*pw;
+    ctx.beginPath();ctx.moveTo(px,py);
+    for(let i=0;i<30;i++){pvx*=0.999;pvy+=G;px+=pvx;py+=pvy;if(px<0||px>W||py>H-40)break;ctx.lineTo(px,py);}
+    ctx.stroke();ctx.setLineDash([]);
+  }
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,200,255,0.4)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#333';ctx.font='bold 26px monospace';ctx.textAlign='center';
+    ctx.fillText('🔫 CANNON BALL',W/2,H/2-20);ctx.font='14px monospace';ctx.fillText('Click to aim & fire',W/2,H/2+16);ctx.textAlign='left';
+  }
+}
+
+function loop(){update();draw();if(state==='flying')raf=requestAnimationFrame(loop);}
+btn.addEventListener('click',initLevel);
+draw();
+</script>
+</body>
+</html>

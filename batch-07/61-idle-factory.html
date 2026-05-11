@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Idle Factory</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f0e8; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #333; gap: 10px; }
+#game { width: 480px; }
+h2 { text-align: center; margin-bottom: 8px; font-size: 1.1rem; }
+#resources { background: #fff; border: 1px solid #ccc; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.95rem; }
+#buildings { display: flex; flex-direction: column; gap: 6px; }
+.building { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 10px;
+            display: flex; justify-content: space-between; align-items: center; }
+.building button { background: #5a8a5a; color: #fff; border: none; padding: 5px 12px; cursor: pointer;
+                   font: inherit; border-radius: 3px; font-size: 0.85rem; }
+.building button:disabled { background: #aaa; cursor: default; }
+.binfo { flex: 1; }
+.bname { font-weight: bold; font-size: 0.95rem; }
+.bdesc { font-size: 0.8rem; color: #666; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button.main { background: #888; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
+#clicker { width: 100%; padding: 14px; background: #e8d5a0; border: 2px solid #c8a060; border-radius: 8px;
+           cursor: pointer; font: inherit; font-size: 1rem; margin-bottom: 8px; }
+#clicker:hover { background: #d8c590; }
+</style>
+</head>
+<body>
+<div id="game">
+  <h2>🏭 IDLE FACTORY</h2>
+  <div id="resources">Widgets: 0 | Per sec: 0</div>
+  <button id="clicker">⚙️ Crank (+1 widget)</button>
+  <div id="buildings"></div>
+</div>
+<div id="ui">
+  <span id="msg">Click to produce widgets, buy buildings!</span>
+  <button class="main" id="btn">Reset</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const BUILDINGS=[
+  {name:'Workshop',desc:'1 widget/sec',base:10,cps:1,count:0},
+  {name:'Assembly Line',desc:'5 widgets/sec',base:60,cps:5,count:0},
+  {name:'Robot Arm',desc:'20 widgets/sec',base:200,cps:20,count:0},
+  {name:'Mega Factory',desc:'100 widgets/sec',base:800,cps:100,count:0},
+  {name:'Widget AI',desc:'500 widgets/sec',base:3000,cps:500,count:0},
+];
+let widgets=0,totalWidgets=0,lastTick=Date.now();
+
+function cost(b){return Math.floor(b.base*Math.pow(1.15,b.count));}
+function cps(){return BUILDINGS.reduce((s,b)=>s+b.cps*b.count,0);}
+
+function tick(){
+  const now=Date.now(),dt=(now-lastTick)/1000;lastTick=now;
+  widgets+=cps()*dt;totalWidgets+=cps()*dt;
+  render();requestAnimationFrame(tick);
+}
+
+function buy(i){
+  const b=BUILDINGS[i],c=cost(b);
+  if(widgets>=c){widgets-=c;b.count++;render();}
+}
+
+function fmt(n){
+  if(n>=1e9)return(n/1e9).toFixed(1)+'B';
+  if(n>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
+  return Math.floor(n).toString();
+}
+
+function render(){
+  document.getElementById('resources').textContent=
+    `Widgets: ${fmt(widgets)} | Per sec: ${fmt(cps())} | Total: ${fmt(totalWidgets)}`;
+  const div=document.getElementById('buildings');div.innerHTML='';
+  BUILDINGS.forEach((b,i)=>{
+    const c=cost(b);
+    const d=document.createElement('div');d.className='building';
+    d.innerHTML=`<div class="binfo"><div class="bname">${b.name} <span style="color:#888">(${b.count})</span></div>
+      <div class="bdesc">${b.desc} · Cost: ${fmt(c)} widgets</div></div>`;
+    const btn=document.createElement('button');btn.textContent='Buy';
+    btn.disabled=widgets<c;btn.onclick=()=>buy(i);d.appendChild(btn);div.appendChild(d);
+  });
+}
+
+document.getElementById('clicker').onclick=()=>{widgets+=1;totalWidgets+=1;render();};
+document.getElementById('btn').onclick=()=>{
+  widgets=0;totalWidgets=0;BUILDINGS.forEach(b=>b.count=0);lastTick=Date.now();render();
+};
+render();requestAnimationFrame(tick);
+</script>
+</body>
+</html>

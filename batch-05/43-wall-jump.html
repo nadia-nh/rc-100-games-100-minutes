@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wall Jump</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="280" height="500"></canvas>
+<div id="ui">
+  <span id="msg">← → wall-jump to climb! Reach the top star</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=280,H=500,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const G=0.5,JUMP_Y=-13,JUMP_X=6,PW=20,PH=28,WALL=20;
+let state='idle',p,score,highScore=0,raf,keys={},camY=0;
+
+function init(){
+  p={x:W/2-PW/2,y:H-60,vx:0,vy:0,touchWall:0,dir:0};
+  score=0;camY=0;state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function update(){
+  p.vy+=G;p.y+=p.vy;p.x+=p.vx;p.vx*=0.85;
+  // walls
+  p.touchWall=0;
+  if(p.x<=WALL){p.x=WALL;p.vx=0;p.touchWall=-1;}
+  if(p.x+PW>=W-WALL){p.x=W-WALL-PW;p.vx=0;p.touchWall=1;}
+  // fall off bottom
+  if(p.y>H+camY+50){endGame();return;}
+  // spike platforms at intervals
+  const checkH=-(score*80+500);
+  if(p.y-camY>H+20){camY=p.y-H+100;}
+  // scroll camera up
+  if(p.y<camY+200)camY=p.y-200;
+  score=Math.max(score,Math.floor(-p.y/10));
+  if(score>highScore)highScore=score;
+  msg.textContent=`Height:${score}  Best:${highScore}`;
+
+  // jump
+  if((keys['ArrowLeft']||keys['KeyA']||keys['ArrowRight']||keys['KeyD'])&&p.touchWall!==0){
+    const pressLeft=keys['ArrowLeft']||keys['KeyA'];
+    const pressRight=keys['ArrowRight']||keys['KeyD'];
+    if((p.touchWall===-1&&pressRight)||(p.touchWall===1&&pressLeft)){
+      p.vy=JUMP_Y;p.vx=-p.touchWall*JUMP_X;
+      keys['ArrowLeft']=keys['KeyA']=keys['ArrowRight']=keys['KeyD']=false;
+    }
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(0,-camY);
+  // walls
+  const grad=ctx.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0,'#1a3a6a');grad.addColorStop(1,'#1a3a6a');
+  ctx.fillStyle='#1a2a4a';ctx.fillRect(0,p.y+200,WALL,2000);ctx.fillRect(W-WALL,p.y+200,WALL,2000);
+  // left wall segments
+  ctx.fillStyle='#2a4a8a';
+  for(let y=0;y<2000;y+=80){ctx.fillRect(0,-y,WALL,60);ctx.fillRect(W-WALL,-y+40,WALL,60);}
+  // target star at top
+  const starY=-4000;
+  ctx.fillStyle='#ffd700';ctx.font='24px serif';ctx.textAlign='center';ctx.fillText('⭐',W/2,starY);ctx.textAlign='left';
+  if(p.y<starY+30){endGame(true);return;}
+  // player
+  ctx.fillStyle='#3af';ctx.fillRect(p.x,p.y,PW,PH);
+  ctx.fillStyle='#fff';ctx.fillRect(p.x+3,p.y+4,6,6);ctx.fillRect(p.x+PW-9,p.y+4,6,6);
+  // wall contact indicator
+  if(p.touchWall!==0){
+    ctx.fillStyle='rgba(255,255,0,0.4)';
+    if(p.touchWall===-1)ctx.fillRect(0,p.y,WALL,PH);
+    else ctx.fillRect(W-WALL,p.y,WALL,PH);
+  }
+  ctx.restore();
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,24);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.fillText(`Height: ${score}  Best: ${highScore}  ← → to wall-jump`,4,16);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 20px monospace';ctx.textAlign='center';
+    ctx.fillText('WALL JUMP',W/2,H/2-20);ctx.font='12px monospace';
+    ctx.fillText('Press ← → against wall',W/2,H/2+10);ctx.fillText('to jump off!',W/2,H/2+28);ctx.textAlign='left';
+  }
+}
+
+function endGame(won){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#ffd700':'#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'🌟 YOU WIN!':'FELL!',W/2,H/2-20);
+  ctx.fillStyle='#fff';ctx.font='14px monospace';ctx.fillText('Height: '+score,W/2,H/2+14);ctx.textAlign='left';
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Number Sequence</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0e1a; min-height: 100vh; display: flex; flex-direction: column;
+       align-items: center; justify-content: center; font-family: system-ui; color: #eee; gap: 20px; padding: 20px; }
+h1 { font-size: 1.8rem; }
+#info { display: flex; gap: 24px; color: #aaa; font-size: 1rem; }
+#sequence { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.num-box { width: 70px; height: 70px; background: #1a2a4a; border: 2px solid #3a4a6a;
+           border-radius: 10px; display: flex; align-items: center; justify-content: center;
+           font-size: 1.8rem; font-weight: 900; color: #4fc3f7; font-family: monospace; }
+.num-box.blank { background: #2a1a3a; border-color: #6a3a8a; color: #9b59b6; font-size: 2rem; }
+#input { font-size: 2rem; padding: 10px 18px; width: 120px; text-align: center;
+         background: #1a2a4a; border: 2px solid #4fc3f7; border-radius: 8px; color: #eee;
+         outline: none; font-family: monospace; }
+#input.correct { border-color: #27ae60; background: #0a2a1a; }
+#input.wrong   { border-color: #e74c3c; animation: shake 0.3s; }
+#hint { color: #888; font-size: 0.85rem; min-height: 1.2em; }
+#status { font-size: 1.1rem; font-weight: 700; min-height: 1.5em; }
+#controls { display: flex; gap: 10px; }
+button { background: #2980b9; color: #fff; border: none; padding: 10px 20px;
+         border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+</style>
+</head>
+<body>
+<h1>🔢 Number Sequence</h1>
+<div id="info"><span>Score: <b id="score">0</b></span><span>Round: <b id="round">1</b>/10</span></div>
+<div id="sequence"></div>
+<div id="hint"></div>
+<input id="input" type="number" placeholder="?" />
+<div id="status">What comes next?</div>
+<div id="controls">
+  <button id="submit-btn">Submit</button>
+  <button id="hint-btn">Hint</button>
+</div>
+<a href="../index.html">↩ Gallery</a>
+<script>
+function makeSeq() {
+  const type = Math.floor(Math.random() * 8);
+  const a = 1 + Math.floor(Math.random() * 10);
+  const d = 1 + Math.floor(Math.random() * 9);
+  const r = 2 + Math.floor(Math.random() * 2);
+  let seq, hint, next;
+  switch(type) {
+    case 0: seq=[a,a+d,a+2*d,a+3*d]; next=a+4*d; hint=`Add ${d} each time`; break;
+    case 1: seq=[a,a*r,a*r*r,a*r*r*r]; next=a*r**4; hint=`Multiply by ${r} each time`; break;
+    case 2: seq=[a,a+1,a+3,a+6]; next=a+10; hint='Add 1, 2, 3, 4...'; break;
+    case 3: { const b=a+d; seq=[a,b,a+b,a+b+(a+b)]; next=seq[2]+seq[3]; hint='Each = sum of previous two'; break; }
+    case 4: seq=[a*a,(a+1)*(a+1),(a+2)*(a+2),(a+3)*(a+3)]; next=(a+4)*(a+4); hint='Perfect squares'; break;
+    case 5: seq=[a,a+d,a+2*d,a+3*d].map((x,i)=>x*(i+1)); next=seq[3]+(d); hint='Arithmetic × position'; break;
+    case 6: seq=[1,2,4,8]; next=16; hint='Powers of 2'; break;
+    case 7: { const start=a*2; seq=[start,start+1,start+3,start+7]; next=start+15; hint='Add 1, 2, 4, 8...'; break; }
+  }
+  // fallback safe
+  if(!seq||seq.some(isNaN)){seq=[2,4,6,8];next=10;hint='Add 2';}
+  return {seq,next,hint};
+}
+
+let round=0, score=0, current;
+const seqEl=document.getElementById('sequence'), statusEl=document.getElementById('status');
+const scoreEl=document.getElementById('score'), roundEl=document.getElementById('round');
+const inputEl=document.getElementById('input'), hintEl=document.getElementById('hint');
+
+function nextRound(){
+  if(round>=10){statusEl.textContent=`🏁 Done! Score: ${score}/100`;return;}
+  round++; roundEl.textContent=round;
+  current=makeSeq();
+  hintEl.textContent=''; statusEl.textContent='What comes next?';
+  inputEl.value=''; inputEl.className='';
+  seqEl.innerHTML='';
+  current.seq.forEach(n=>{const b=document.createElement('div');b.className='num-box';b.textContent=n;seqEl.appendChild(b);});
+  const blank=document.createElement('div'); blank.className='num-box blank'; blank.textContent='?'; seqEl.appendChild(blank);
+}
+
+document.getElementById('submit-btn').addEventListener('click',()=>{
+  const ans=parseInt(inputEl.value);
+  if(isNaN(ans)){statusEl.textContent='Enter a number!';return;}
+  if(ans===current.next){
+    score+=10;scoreEl.textContent=score;
+    inputEl.className='correct'; statusEl.textContent='✅ Correct!';
+    setTimeout(nextRound,700);
+  } else {
+    inputEl.className='wrong';
+    statusEl.textContent=`❌ Wrong. Answer was ${current.next}`;
+    setTimeout(()=>{inputEl.className='';inputEl.value='';nextRound();},1200);
+  }
+});
+document.getElementById('hint-btn').addEventListener('click',()=>hintEl.textContent='💡 '+current.hint);
+inputEl.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('submit-btn').click();});
+nextRound();
+</script>
+</body>
+</html>

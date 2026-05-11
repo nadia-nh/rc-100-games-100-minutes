@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pinball Lite</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="300" height="520"></canvas>
+<div id="ui">
+  <span id="msg">Z = left flipper · / = right flipper</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=300,H=520,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let state='idle',ball,score,lives,raf,keys={};
+let lFlip={angle:0.6,target:0.6},rFlip={angle:Math.PI-0.6,target:Math.PI-0.6};
+
+const BUMPERS=[{x:80,y:160,r:22},{x:220,y:160,r:22},{x:150,y:110,r:22},{x:110,y:230,r:18},{x:190,y:230,r:18}];
+
+function init(){
+  ball={x:280,y:400,vx:-1,vy:-8,r:9};
+  score=0;lives=3;
+  lFlip={angle:0.6,target:0.6};rFlip={angle:Math.PI-0.6,target:Math.PI-0.6};
+  state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+}
+
+function reflectCircle(bx,by,cx,cy,vx,vy){
+  const dx=bx-cx,dy=by-cy;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  const nx=dx/len,ny=dy/len;
+  const dot=vx*nx+vy*ny;
+  return{vx:vx-2*dot*nx,vy:vy-2*dot*ny};
+}
+
+function flipperPoint(fx,fy,angle,t){
+  const len=60;
+  return{x:fx+Math.cos(angle)*len*t,y:fy+Math.sin(angle)*len*t};
+}
+
+function distPointSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay;
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy)));
+  return{dist:Math.hypot(px-ax-dx*t,py-ay-dy*t),t};
+}
+
+function update(){
+  if(state!=='playing')return;
+  // flipper control
+  const lPress=keys['KeyZ']||keys['ShiftLeft'];
+  const rPress=keys['Slash']||keys['ShiftRight'];
+  lFlip.target=lPress?-0.3:0.6;
+  rFlip.target=rPress?Math.PI+0.3:Math.PI-0.6;
+  lFlip.angle+=(lFlip.target-lFlip.angle)*0.35;
+  rFlip.angle+=(rFlip.target-rFlip.angle)*0.35;
+
+  ball.vy+=0.3;ball.x+=ball.vx;ball.y+=ball.vy;
+  const spd=Math.sqrt(ball.vx**2+ball.vy**2);
+  if(spd>18){ball.vx*=18/spd;ball.vy*=18/spd;}
+
+  // walls
+  if(ball.x-ball.r<10){ball.x=10+ball.r;ball.vx=Math.abs(ball.vx)*0.8;}
+  if(ball.x+ball.r>W-10){ball.x=W-10-ball.r;ball.vx=-Math.abs(ball.vx)*0.8;}
+  if(ball.y-ball.r<10){ball.y=10+ball.r;ball.vy=Math.abs(ball.vy)*0.8;}
+
+  // bumpers
+  for(const b of BUMPERS){
+    const dx=ball.x-b.x,dy=ball.y-b.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<ball.r+b.r){
+      const r=reflectCircle(ball.x,ball.y,b.x,b.y,ball.vx,ball.vy);
+      ball.vx=r.vx*1.3;ball.vy=r.vy*1.3;
+      const push=ball.r+b.r-dist+1;
+      ball.x+=dx/dist*push;ball.y+=dy/dist*push;
+      score+=100;
+    }
+  }
+
+  // flippers
+  const lx=70,ly=450,rx=230,ry=450;
+  const lTip=flipperPoint(lx,ly,lFlip.angle,1);
+  const rTip=flipperPoint(rx,ry,rFlip.angle,1);
+  for(const [ax,ay,bx,by,boosted] of [[lx,ly,lTip.x,lTip.y,lPress],[rx,ry,rTip.x,rTip.y,rPress]]){
+    const {dist,t}=distPointSeg(ball.x,ball.y,ax,ay,bx,by);
+    if(dist<ball.r+4){
+      const nx=(ball.x-(ax+(bx-ax)*t)),ny=(ball.y-(ay+(by-ay)*t));
+      const nl=Math.sqrt(nx*nx+ny*ny)||1;
+      ball.x+=(nx/nl)*(ball.r+4-dist);ball.y+=(ny/nl)*(ball.r+4-dist);
+      const dot=ball.vx*(nx/nl)+ball.vy*(ny/nl);
+      ball.vx-=2*dot*(nx/nl);ball.vy-=2*dot*(ny/nl);
+      if(boosted)ball.vy-=6;
+    }
+  }
+
+  // lost ball
+  if(ball.y>H+20){
+    lives--;
+    if(lives<=0){endGame();return;}
+    ball={x:280,y:380,vx:-1,vy:-9,r:9};
+  }
+  msg.textContent=`Score: ${score}  Lives: ${'●'.repeat(lives)}`;
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,W,H);
+  // walls
+  ctx.fillStyle='#223';ctx.fillRect(0,0,10,H);ctx.fillRect(W-10,0,10,H);ctx.fillRect(0,0,W,10);
+  // gutters
+  ctx.fillStyle='#334';
+  ctx.beginPath();ctx.moveTo(10,H);ctx.lineTo(10,430);ctx.lineTo(65,480);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(W-10,H);ctx.lineTo(W-10,430);ctx.lineTo(W-65,480);ctx.closePath();ctx.fill();
+  // bumpers
+  BUMPERS.forEach(b=>{
+    ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff0';ctx.beginPath();ctx.arc(b.x,b.y,b.r*0.5,0,Math.PI*2);ctx.fill();
+  });
+  // flippers
+  const lx=70,ly=450,rx=230,ry=450;
+  ctx.strokeStyle='#3af';ctx.lineWidth=10;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(lx+Math.cos(lFlip.angle)*60,ly+Math.sin(lFlip.angle)*60);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(rx,ry);ctx.lineTo(rx+Math.cos(rFlip.angle)*60,ry+Math.sin(rFlip.angle)*60);ctx.stroke();
+  // ball
+  ctx.fillStyle='#ddd';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+  // score
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#ffd700';ctx.font='13px monospace';ctx.fillText('Score: '+score+'  '+'●'.repeat(lives),6,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('PINBALL',W/2,H/2-20);ctx.font='12px monospace';
+    ctx.fillText('Z = left  / = right flipper',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('GAME OVER',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='14px monospace';
+  ctx.fillText('Score: '+score,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent='Final score: '+score;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','ArrowUp','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

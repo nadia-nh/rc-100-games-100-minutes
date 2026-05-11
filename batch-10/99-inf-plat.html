@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Infinite Platformer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">Space to jump · Survive as long as you can!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+let player,platforms,obstacles,velY,gravity,scroll,score,state='idle',raf;
+let keys={Space:false};
+function init(){player={x:80,y:360,w:24,h:28};velY=0;gravity=0.75;scroll=0;score=0;state='playing';platforms=[{x:0,y:400,w:480}];obstacles=[];btn.textContent='Restart';msg.textContent='Jump gaps and avoid spikes!';cancelAnimationFrame(raf);loop();}
+function spawnPlatform(){const last=platforms[platforms.length-1];const gap=100+Math.random()*100;const width=80+Math.random()*120;const y=300+Math.random()*80;platforms.push({x:last.x+last.w+gap,y, w:width}); if(Math.random()<0.4){obstacles.push({x:last.x+last.w+gap+width-24,y:y-16,w:20,h:16});}}
+function update(){if(state!=='playing')return;
+  if(keys.Space && player.y+player.h>=H-20){velY=-12;} velY += gravity; player.y += velY; if(player.y+player.h>400){player.y=400-player.h;velY=0;}
+  scroll += 2 + Math.min(3,score/200); score += 0.1;
+  platforms.forEach(p=>p.x -= 2 + Math.min(3,score/200)); obstacles.forEach(o=>o.x -= 2 + Math.min(3,score/200));
+  if(platforms[platforms.length-1].x+platforms[platforms.length-1].w < W+150) spawnPlatform();
+  platforms = platforms.filter(p=>p.x+p.w> -100);
+  obstacles = obstacles.filter(o=>o.x+o.w > -50);
+  const grounded = platforms.some(p=>player.x+player.w>p.x && player.x<p.x+p.w && player.y+player.h===p.y);
+  if(!grounded && player.y+player.h>=H-20){endGame(false);return;}
+  obstacles.forEach(o=>{if(player.x<o.x+o.w && player.x+player.w>o.x && player.y<o.y+o.h && player.y+player.h>o.y){endGame(false);}});
+}
+function draw(){ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#225';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#472';ctx.fillRect(0,400, W,80);
+  platforms.forEach(p=>{ctx.fillStyle='#888';ctx.fillRect(p.x,p.y,p.w,12);});
+  obstacles.forEach(o=>{ctx.fillStyle='#f22';ctx.fillRect(o.x,o.y,o.w,o.h);ctx.fillStyle='#000';ctx.fillRect(o.x+4,o.y+2,12,8);});
+  ctx.fillStyle='#0cf';ctx.fillRect(player.x,player.y,player.w,player.h);
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='12px monospace';ctx.textAlign='left';
+  ctx.fillText(`Score: ${Math.floor(score)}  ${state==='playing'?'Space=jump':''}`,4,15);
+  if(state==='idle'){ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffd700';ctx.font='bold 22px monospace';ctx.textAlign='center';ctx.fillText('INFINITE PLATFORMER',W/2,H/2-20);
+    ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.fillText('Space to jump and survive',W/2,H/2+10);
+  }}
+function endGame(won){state='over';cancelAnimationFrame(raf);ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#0f0':'#f44';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'YOU SURVIVED!':'GAME OVER',W/2,H/2-16);ctx.fillStyle='#fff';ctx.font='13px monospace';ctx.fillText(`Score ${Math.floor(score)}`,W/2,H/2+14);msg.textContent=won?'Nice run!':'You fell.';}
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+window.addEventListener('keydown',e=>{if(e.code==='Space'){keys.Space=true; e.preventDefault();}});
+window.addEventListener('keyup',e=>{if(e.code==='Space'){keys.Space=false;}});
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Roguelite Dungeon</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 8px; }
+canvas { border: 2px solid #333; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="480"></canvas>
+<div id="ui">
+  <span id="msg">WASD move · Space attack · Survive 5 floors!</span>
+  <button id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=480,H=480,T=32,msg=document.getElementById('msg'),btn=document.getElementById('btn');
+const COLS=15,ROWS=15;
+
+function makeMap(){
+  const map=Array(ROWS).fill(null).map(()=>Array(COLS).fill(1));
+  // BSP rooms
+  const rooms=[];
+  function carve(x1,y1,x2,y2,depth){
+    const w=x2-x1,h=y2-y1;
+    if(w<6||h<6||depth>4)return;
+    if(w>h&&w>10){
+      const mx=x1+3+Math.floor(Math.random()*(w-6));
+      carve(x1,y1,mx,y2,depth+1);carve(mx,y1,x2,y2,depth+1);
+      // corridor
+      const cy=y1+1+Math.floor(Math.random()*(h-2));
+      for(let x=mx-1;x<=mx+1;x++)if(cy>0&&cy<ROWS-1)map[cy][x]=0;
+    } else if(h>6){
+      const my=y1+3+Math.floor(Math.random()*(h-6));
+      carve(x1,y1,x2,my,depth+1);carve(x1,my,x2,y2,depth+1);
+      const cx=x1+1+Math.floor(Math.random()*(w-2));
+      for(let y=my-1;y<=my+1;y++)if(cx>0&&cx<COLS-1)map[y][cx]=0;
+    } else {
+      // leaf room
+      const rx=x1+1+Math.floor(Math.random()*2),ry=y1+1+Math.floor(Math.random()*2);
+      const rw=Math.min(x2-rx-1,3+Math.floor(Math.random()*3));
+      const rh=Math.min(y2-ry-1,3+Math.floor(Math.random()*3));
+      for(let r=ry;r<ry+rh;r++)for(let c=rx;c<rx+rw;c++)map[r][c]=0;
+      rooms.push({cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
+    }
+  }
+  carve(0,0,COLS,ROWS,0);
+  // fallback
+  if(rooms.length<2){map[7][7]=0;rooms.push({cx:7,cy:7});map[2][2]=0;rooms.push({cx:2,cy:2});}
+  return{map,rooms};
+}
+
+let map,rooms,player,enemies,sword,keys,state='idle',raf,floor,items;
+let camX=0,camY=0;
+
+function init(){floor=1;initStats();newFloor();state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();}
+
+let pStats;
+function initStats(){pStats={hp:20,maxHp:20,atk:3,def:0,xp:0,xpNext:10,lvl:1};}
+
+function newFloor(){
+  const {map:m,rooms:r}=makeMap();map=m;rooms=r;
+  const start=rooms[0];
+  player={x:start.cx*T+T/2,y:start.cy*T+T/2,r:10,vx:0,vy:0,dir:0,attackTimer:0,invincible:0};
+  enemies=[];sword=null;keys={};items=[];
+  // stairs
+  const end=rooms[rooms.length-1];
+  stairs={x:end.cx*T+T/2,y:end.cy*T+T/2};
+  // spawn enemies
+  const count=2+floor*2;
+  for(let i=0;i<count;i++){
+    let ex,ey,tries=0;
+    do{
+      const rr=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+      ex=(rr.cx-1+Math.floor(Math.random()*3))*T+T/2;
+      ey=(rr.cy-1+Math.floor(Math.random()*3))*T+T/2;
+      tries++;
+    }while((tileAt(ex,ey)||Math.hypot(ex-player.x,ey-player.y)<80)&&tries<30);
+    enemies.push({x:ex,y:ey,r:11,vx:0,vy:0,hp:2+floor,maxHp:2+floor,moveTimer:0,xp:2+floor,atk:1+Math.floor(floor/2)});
+  }
+  // items in random rooms
+  for(let i=1;i<Math.min(rooms.length,3);i++){
+    const rr=rooms[i];
+    if(Math.random()<0.6)items.push({x:rr.cx*T+T/2,y:rr.cy*T+T/2,type:Math.random()<0.6?'hp':'atk'});
+  }
+  updateCam();
+}
+
+let stairs={};
+function tileAt(x,y){
+  const r=Math.floor(y/T),c=Math.floor(x/T);
+  return(r>=0&&r<ROWS&&c>=0&&c<COLS)?map[r][c]:1;
+}
+function moveWithCollide(obj,dx,dy){
+  obj.x+=dx;if(tileAt(obj.x-obj.r,obj.y)||tileAt(obj.x+obj.r,obj.y))obj.x-=dx;
+  obj.y+=dy;if(tileAt(obj.x,obj.y-obj.r)||tileAt(obj.x,obj.y+obj.r))obj.y-=dy;
+}
+function updateCam(){
+  camX=Math.max(0,Math.min(COLS*T-W,player.x-W/2));
+  camY=Math.max(0,Math.min(ROWS*T-H,player.y-H/2));
+}
+
+function update(){
+  if(state!=='playing')return;
+  const spd=2.5;let dx=0,dy=0;
+  if(keys['KeyA']||keys['ArrowLeft']){dx=-spd;player.dir=2;}
+  if(keys['KeyD']||keys['ArrowRight']){dx=spd;player.dir=0;}
+  if(keys['KeyW']||keys['ArrowUp']){dy=-spd;player.dir=3;}
+  if(keys['KeyS']||keys['ArrowDown']){dy=spd;player.dir=1;}
+  if(dx&&dy){dx*=0.707;dy*=0.707;}
+  moveWithCollide(player,dx,dy);
+  updateCam();
+  if(player.attackTimer>0)player.attackTimer--;
+  if(player.invincible>0)player.invincible--;
+
+  // sword
+  if(keys['Space']&&player.attackTimer===0){
+    const dirs=[[1,0],[0,1],[-1,0],[0,-1]];const[sdx,sdy]=dirs[player.dir];
+    sword={x:player.x+sdx*24,y:player.y+sdy*24,r:14,life:14};
+    player.attackTimer=18;
+  }
+  if(sword){sword.life--;if(sword.life<=0)sword=null;}
+
+  // items
+  items=items.filter(it=>{
+    if(Math.hypot(player.x-it.x,player.y-it.y)<player.r+12){
+      if(it.type==='hp'){pStats.hp=Math.min(pStats.maxHp,pStats.hp+8);msg.textContent='Healed +8 HP!';}
+      else{pStats.atk++;msg.textContent='Attack +1!';}
+      return false;
+    }return true;
+  });
+
+  // stairs
+  if(Math.hypot(player.x-stairs.x,player.y-stairs.y)<player.r+14){
+    if(enemies.length===0){
+      floor++;
+      if(floor>5){endGame(true);return;}
+      newFloor();
+      msg.textContent=`Floor ${floor}/5! Level up?`;
+    } else msg.textContent='Clear enemies first!';
+  }
+
+  // enemies
+  enemies.forEach(e=>{
+    e.moveTimer++;
+    if(e.moveTimer%20===0){const a=Math.atan2(player.y-e.y,player.x-e.x);e.vx=Math.cos(a)*1.0;e.vy=Math.sin(a)*1.0;}
+    moveWithCollide(e,e.vx,e.vy);
+    if(sword&&Math.hypot(e.x-sword.x,e.y-sword.y)<e.r+sword.r){
+      e.hp-=pStats.atk;sword=null;
+      if(e.hp<=0){e.dead=true;pStats.xp+=e.xp;checkLevelUp();}
+    }
+    if(player.invincible===0&&Math.hypot(e.x-player.x,e.y-player.y)<e.r+player.r){
+      const dmg=Math.max(1,e.atk-pStats.def);pStats.hp-=dmg;player.invincible=60;
+      if(pStats.hp<=0){endGame(false);return;}
+    }
+  });
+  enemies=enemies.filter(e=>!e.dead);
+  if(enemies.length===0&&state==='playing')msg.textContent=`Floor ${floor}/5 · Step on stairs ▼ to advance!`;
+  else if(enemies.length>0)msg.textContent=`Floor ${floor}/5 · HP:${pStats.hp}/${pStats.maxHp} · Enemies:${enemies.length}`;
+}
+
+function checkLevelUp(){
+  if(pStats.xp>=pStats.xpNext){
+    pStats.xp-=pStats.xpNext;pStats.lvl++;pStats.xpNext=Math.floor(pStats.xpNext*1.5);
+    pStats.maxHp+=5;pStats.hp=Math.min(pStats.maxHp,pStats.hp+5);pStats.atk++;
+    msg.textContent=`Level up! Lvl ${pStats.lvl} · ATK ${pStats.atk} · MaxHP ${pStats.maxHp}`;
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(-camX,-camY);
+  // tiles
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    ctx.fillStyle=map[r][c]?'#2a2a2a':'#3a2a1a';ctx.fillRect(c*T,r*T,T,T);
+    if(!map[r][c]){ctx.fillStyle='rgba(255,200,100,0.04)';ctx.fillRect(c*T,r*T,T,T);}
+  }
+  // stairs
+  ctx.fillStyle='#ffd700';ctx.font='20px serif';ctx.textAlign='center';
+  ctx.fillText('▼',stairs.x,stairs.y+7);
+  // items
+  items.forEach(it=>{
+    ctx.fillStyle=it.type==='hp'?'#f55':'#fa0';ctx.beginPath();ctx.arc(it.x,it.y,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='10px monospace';ctx.textAlign='center';
+    ctx.fillText(it.type==='hp'?'H':'A',it.x,it.y+4);
+  });
+  // enemies
+  enemies.forEach(e=>{
+    ctx.fillStyle='#933';ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='12px serif';ctx.textAlign='center';ctx.fillText('👹',e.x,e.y+5);
+    ctx.fillStyle='#300';ctx.fillRect(e.x-12,e.y-e.r-8,24,4);
+    ctx.fillStyle='#f00';ctx.fillRect(e.x-12,e.y-e.r-8,24*(e.hp/e.maxHp),4);
+  });
+  if(sword){ctx.fillStyle='rgba(255,255,100,0.8)';ctx.beginPath();ctx.arc(sword.x,sword.y,sword.r,0,Math.PI*2);ctx.fill();}
+  const flash=player.invincible>0&&Math.floor(player.invincible/4)%2;
+  if(!flash){
+    ctx.fillStyle='#3af';ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='14px serif';ctx.textAlign='center';ctx.fillText('🧙',player.x,player.y+6);
+  }
+  ctx.restore();
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,22);
+  ctx.fillStyle='#fff';ctx.font='11px monospace';ctx.textAlign='left';
+  ctx.fillText(`Floor ${floor}/5  HP:${pStats.hp}/${pStats.maxHp}  ATK:${pStats.atk}  LVL:${pStats.lvl}  XP:${pStats.xp}/${pStats.xpNext}  Enemies:${enemies.length}`,4,15);
+  if(state==='idle'){
+    ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffd700';ctx.font='bold 22px monospace';ctx.textAlign='center';
+    ctx.fillText('ROGUELITE DUNGEON',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='13px monospace';
+    ctx.fillText('WASD move · Space attack · 5 floors!',W/2,H/2+10);ctx.textAlign='left';
+  }
+}
+
+function endGame(won){
+  state='over';cancelAnimationFrame(raf);
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=won?'#ffd700':'#e74c3c';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(won?'DUNGEON CLEARED! 🏆':'DIED IN DARKNESS',W/2,H/2-16);
+  ctx.fillStyle='#fff';ctx.font='13px monospace';
+  ctx.fillText(`Floor ${floor}/5 · Lvl ${pStats.lvl} · ATK ${pStats.atk}`,W/2,H/2+14);ctx.textAlign='left';
+  msg.textContent=(won?'All 5 floors cleared!':'You perished...')+` Floor ${floor}, Lvl ${pStats.lvl}`;
+}
+
+function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Space'&&(state==='idle'||state==='over'))init();});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+btn.addEventListener('click',init);draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Trivia Quiz</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a1a2e; display: flex; flex-direction: column; align-items: center;
+       justify-content: center; min-height: 100vh; font-family: monospace; color: #eee; gap: 12px; }
+#game { width: 500px; }
+#progress { height: 6px; background: #1a3a5a; border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+#progress-bar { height: 100%; background: #3498db; border-radius: 3px; transition: width 0.3s; }
+#question { background: #0a2a4a; border: 1px solid #1a4a6a; border-radius: 8px; padding: 16px;
+            font-size: 1.05rem; line-height: 1.5; min-height: 80px; margin-bottom: 10px; }
+#answers { display: flex; flex-direction: column; gap: 6px; }
+.ans { background: #0a2a4a; border: 1px solid #1a4a6a; border-radius: 6px; padding: 10px 14px;
+       cursor: pointer; transition: background 0.1s; font: inherit; color: #eee; text-align: left; font-size: 0.95rem; }
+.ans:hover { background: #1a3a5a; }
+.ans.correct { background: #1a4a1a; border-color: #2ecc71; color: #2ecc71; }
+.ans.wrong { background: #4a1a1a; border-color: #e74c3c; color: #e74c3c; }
+.ans.reveal { background: #1a4a1a; border-color: #2ecc71; }
+#ui { display: flex; gap: 14px; align-items: center; font-size: 0.9rem; }
+button.main { background: #1a4a8a; color: #eee; border: 1px solid #3a6aaa; padding: 6px 14px; cursor: pointer; font: inherit; border-radius: 3px; }
+a { color: #555; font-size: 0.8rem; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="progress"><div id="progress-bar" style="width:0%"></div></div>
+  <div id="question">Press Start to begin the quiz!</div>
+  <div id="answers"></div>
+</div>
+<div id="ui">
+  <span id="msg">10 questions · Choose wisely!</span>
+  <button class="main" id="btn">Start</button>
+  <a href="../index.html">↩</a>
+</div>
+<script>
+const QUESTIONS=[
+  {q:'What is the capital of France?',a:['Paris','London','Berlin','Madrid'],c:0},
+  {q:'How many sides does a hexagon have?',a:['5','6','7','8'],c:1},
+  {q:'What is the chemical symbol for gold?',a:['Ag','Fe','Au','Cu'],c:2},
+  {q:'Which planet is known as the Red Planet?',a:['Venus','Jupiter','Mars','Saturn'],c:2},
+  {q:'Who painted the Mona Lisa?',a:['Michelangelo','Raphael','Leonardo da Vinci','Botticelli'],c:2},
+  {q:'What is the largest ocean on Earth?',a:['Atlantic','Indian','Arctic','Pacific'],c:3},
+  {q:'How many bones are in the adult human body?',a:['106','206','306','406'],c:1},
+  {q:'What year did World War II end?',a:['1943','1944','1945','1946'],c:2},
+  {q:'What is the square root of 144?',a:['10','11','12','13'],c:2},
+  {q:'Which element has the atomic number 1?',a:['Helium','Hydrogen','Lithium','Carbon'],c:1},
+  {q:'What is the largest continent?',a:['Africa','North America','Europe','Asia'],c:3},
+  {q:'In which country was the game of chess invented?',a:['China','Persia','India','Greece'],c:2},
+  {q:'What is the speed of light (approx)?',a:['300,000 km/s','150,000 km/s','600,000 km/s','30,000 km/s'],c:0},
+  {q:'How many strings does a standard guitar have?',a:['4','5','6','7'],c:2},
+  {q:'What is the hardest natural substance on Earth?',a:['Gold','Iron','Diamond','Quartz'],c:2},
+  {q:'Which language has the most native speakers worldwide?',a:['English','Spanish','Mandarin Chinese','Hindi'],c:2},
+  {q:'How many planets are in our solar system?',a:['7','8','9','10'],c:1},
+  {q:'What gas do plants absorb from the atmosphere?',a:['Oxygen','Nitrogen','Carbon Dioxide','Hydrogen'],c:2},
+  {q:'Who wrote "Romeo and Juliet"?',a:['Charles Dickens','Shakespeare','Jane Austen','Tolkien'],c:1},
+  {q:'What is the currency of Japan?',a:['Yuan','Won','Yen','Ringgit'],c:2},
+];
+
+let pool,qIdx,score,answered,state='idle';
+
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+
+function init(){
+  pool=shuffle([...QUESTIONS]).slice(0,10);
+  qIdx=0;score=0;answered=false;state='playing';
+  document.getElementById('btn').textContent='Restart';
+  showQuestion();
+}
+
+function showQuestion(){
+  if(qIdx>=pool.length){endGame();return;}
+  const q=pool[qIdx];answered=false;
+  document.getElementById('progress-bar').style.width=((qIdx/pool.length)*100)+'%';
+  document.getElementById('question').textContent=`Q${qIdx+1}/10: ${q.q}`;
+  const div=document.getElementById('answers');div.innerHTML='';
+  const order=shuffle([0,1,2,3]);
+  order.forEach(ai=>{
+    const b=document.createElement('button');b.className='ans';b.textContent=q.a[ai];
+    b.onclick=()=>answer(ai,q.c,b,div,order);div.appendChild(b);
+  });
+  document.getElementById('msg').textContent=`Question ${qIdx+1} of 10 · Score: ${score}`;
+}
+
+function answer(chosen,correct,btn,div,order){
+  if(answered)return;answered=true;
+  const btns=div.querySelectorAll('.ans');
+  btns.forEach((b,i)=>{
+    const ai=order[i];
+    if(ai===correct)b.classList.add('reveal');
+    if(ai===chosen&&chosen!==correct)b.classList.add('wrong');
+    if(ai===chosen&&chosen===correct)b.classList.add('correct');
+    b.disabled=true;
+  });
+  if(chosen===correct){score++;document.getElementById('msg').textContent='✅ Correct! Score: '+score;}
+  else document.getElementById('msg').textContent='❌ Wrong!';
+  setTimeout(()=>{qIdx++;showQuestion();},1200);
+}
+
+function endGame(){
+  state='over';
+  document.getElementById('progress-bar').style.width='100%';
+  document.getElementById('question').textContent=`Quiz complete! You scored ${score}/10.`;
+  document.getElementById('answers').innerHTML='';
+  const grade=score>=9?'🏆 Excellent!':score>=7?'👍 Good job!':score>=5?'😐 Not bad':' 📚 Study more!';
+  document.getElementById('msg').textContent=`${score}/10 · ${grade}`;
+}
+
+document.getElementById('btn').addEventListener('click',init);
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"\\\\\\\\wsl.localhost\\\\ubuntu\\\\home\\\\hered\\\\code\\\\100-games\")",
+      "Bash(ls \"\\\\\\\\wsl.localhost\\\\ubuntu\\\\home\\\\hered\\\\code\\\\100-games\")",
+      "Bash(wsl ls *)",
+      "Bash(ls \"//wsl.localhost/ubuntu/home/hered/code/100-games\" 2>&1)"
+    ]
+  }
+}
