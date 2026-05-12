@@ -110,7 +110,7 @@ function onInput(e){
   }
   typed=val;
   // count words completed
-  if(val.endsWith(' ')&&val.trim()===target.slice(0,val.trim().length)){
+  if(val.endsWith(' ')&&val.trim().length>0&&val.trim()===target.slice(0,val.trim().length)){
     wordCount++;totalChars+=val.length;errors+=bad;
     // refill target if running low
     if(typed.length>target.length-20)target+=' '+pickText();

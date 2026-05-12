@@ -33,7 +33,7 @@ function genMaze(n){
   const visited=Array(n).fill(null).map(()=>Array(n).fill(false));
   function carve(r,c){
     visited[r][c]=true;
-    const dirs=[[−1,0,0,2],[0,1,1,3],[1,0,2,0],[0,−1,3,1]];
+    const dirs=[[-1,0,0,2],[0,1,1,3],[1,0,2,0],[0,-1,3,1]];
     dirs.sort(()=>Math.random()-0.5);
     for(const[dr,dc,wall,opp]of dirs){
       const nr=r+dr,nc=c+dc;
