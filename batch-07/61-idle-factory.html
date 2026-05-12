@@ -49,18 +49,39 @@ const BUILDINGS=[
 ];
 let widgets=0,totalWidgets=0,lastTick=Date.now();
 
+const SAVE_KEY = 'idle-factory-state';
+
+function saveState() {
+  const state = { widgets, totalWidgets, buildings: BUILDINGS };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) {
+    const state = JSON.parse(saved);
+    widgets = state.widgets;
+    totalWidgets = state.totalWidgets;
+    BUILDINGS.forEach((b, i) => {
+      if (state.buildings[i]) {
+        b.count = state.buildings[i].count;
+      }
+    });
+  }
+}
+
 function cost(b){return Math.floor(b.base*Math.pow(1.15,b.count));}
 function cps(){return BUILDINGS.reduce((s,b)=>s+b.cps*b.count,0);}
 
 function tick(){
   const now=Date.now(),dt=(now-lastTick)/1000;lastTick=now;
   widgets+=cps()*dt;totalWidgets+=cps()*dt;
-  render();requestAnimationFrame(tick);
+  render();saveState();requestAnimationFrame(tick);
 }
 
 function buy(i){
   const b=BUILDINGS[i],c=cost(b);
-  if(widgets>=c){widgets-=c;b.count++;render();}
+  if(widgets>=c){widgets-=c;b.count++;render();saveState();}
 }
 
 function fmt(n){
@@ -84,10 +105,11 @@ function render(){
   });
 }
 
-document.getElementById('clicker').onclick=()=>{widgets+=1;totalWidgets+=1;render();};
+document.getElementById('clicker').onclick=()=>{widgets+=1;totalWidgets+=1;render();saveState();};
 document.getElementById('btn').onclick=()=>{
-  widgets=0;totalWidgets=0;BUILDINGS.forEach(b=>b.count=0);lastTick=Date.now();render();
+  widgets=0;totalWidgets=0;BUILDINGS.forEach(b=>b.count=0);lastTick=Date.now();render();localStorage.removeItem(SAVE_KEY);
 };
+loadState();
 render();requestAnimationFrame(tick);
 </script>
 </body>

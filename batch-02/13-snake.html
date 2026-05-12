@@ -26,8 +26,11 @@ const ctx = canvas.getContext('2d');
 const msg = document.getElementById('msg');
 const btn = document.getElementById('btn');
 const W = 400, H = 400, CELL = 20, COLS = W/CELL, ROWS = H/CELL;
-let state = 'idle', snake, dir, nextDir, apple, score, raf;
+let state = 'idle', snake, dir, nextDir, apple, score, raf, best = 0;
 const SPEED = 120;
+const SAVE_KEY = 'snake-best';
+function loadBest() { const b = localStorage.getItem(SAVE_KEY); if (b) best = parseInt(b); }
+function saveBest() { if (score > best) { best = score; localStorage.setItem(SAVE_KEY, best); } }
 
 function rnd(n) { return Math.floor(Math.random() * n); }
 function newApple() {
@@ -42,7 +45,7 @@ function init() {
   dir = { x: 1, y: 0 }; nextDir = { x: 1, y: 0 };
   apple = newApple();
   score = 0; state = 'playing';
-  msg.textContent = 'Score: 0';
+  msg.textContent = 'Score: 0 (Best: ' + best + ')';
   btn.textContent = 'Restart';
   cancelAnimationFrame(raf);
   let last = 0;
@@ -88,14 +91,15 @@ function draw() {
 }
 
 function endGame() {
+  saveBest();
   state = 'over';
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
   ctx.fillText('GAME OVER', W/2, H/2-16);
   ctx.fillStyle = '#eee'; ctx.font = '16px monospace';
-  ctx.fillText('Score: ' + score, W/2, H/2+16);
+  ctx.fillText('Score: ' + score + ' (Best: ' + best + ')', W/2, H/2+16);
   ctx.textAlign = 'left';
-  msg.textContent = 'Game Over — Score: ' + score;
+  msg.textContent = 'Game Over — Score: ' + score + ' (Best: ' + best + ')';
 }
 
 document.addEventListener('keydown', e => {
@@ -104,6 +108,7 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space' && (state === 'idle' || state === 'over')) init();
 });
 btn.addEventListener('click', init);
+loadBest();
 draw();
 </script>
 </body>

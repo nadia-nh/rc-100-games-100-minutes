@@ -23,7 +23,11 @@ a { color: #555; font-size: 0.8rem; text-decoration: none; }
 <script>
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
 const W=480,H=480,msg=document.getElementById('msg'),btn=document.getElementById('btn');
-let state='idle',player,enemies,bullets,score,wave,raf,keys={},mx=W/2,my=H/2,cooldown=0,spawnTimer=0;
+const SAVE_KEY='top-shooter-best';
+let state='idle',player,enemies,bullets,score,wave,best=0,raf,keys={},mx=W/2,my=H/2,cooldown=0,spawnTimer=0;
+
+function loadState(){const saved=localStorage.getItem(SAVE_KEY);if(saved){best=JSON.parse(saved).best||0;}}
+function saveState(){localStorage.setItem(SAVE_KEY,JSON.stringify({best}));}
 
 canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;});
 canvas.addEventListener('click',()=>{if(state==='idle'||state==='over')init();else shoot();});
@@ -39,6 +43,7 @@ function init(){
   player={x:W/2,y:H/2,r:16,hp:5,maxHp:5};
   enemies=[];bullets=[];score=0;wave=0;spawnTimer=0;
   state='playing';btn.textContent='Restart';cancelAnimationFrame(raf);loop();
+  msg.textContent=`Score: 0  Best: ${best}  Wave: 1`;
 }
 
 function spawnEnemy(){
@@ -123,12 +128,13 @@ function draw(){
 }
 
 function endGame(){
+  if(score>best){best=score;saveState();}
   state='over';cancelAnimationFrame(raf);
   ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#e74c3c';ctx.font='bold 26px monospace';ctx.textAlign='center';
   ctx.fillText('YOU DIED',W/2,H/2-20);ctx.fillStyle='#fff';ctx.font='16px monospace';
-  ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
-  msg.textContent='💀 Score: '+score;
+  ctx.fillText('Score: '+score+' | Best: '+best,W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent='💀 Score: '+score+' | Best: '+best;
 }
 
 function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}

@@ -24,7 +24,11 @@ a { color: #060; font-size: 0.8rem; text-decoration: none; }
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
 const W=480,H=480;
 const msg=document.getElementById('msg'),btn=document.getElementById('btn');
-let state='idle',player,aliens,bullets,aBullets,score,lives,raf,keys={},alienDir,alienSpeed,alienTimer;
+const SAVE_KEY='space-invaders-best';
+let state='idle',player,aliens,bullets,aBullets,score,lives,best=0,raf,keys={},alienDir,alienSpeed,alienTimer;
+
+function loadState(){const saved=localStorage.getItem(SAVE_KEY);if(saved){best=JSON.parse(saved).best||0;}}
+function saveState(){localStorage.setItem(SAVE_KEY,JSON.stringify({best}));}
 
 function init(){
   player={x:W/2,y:H-40,w:36,h:16,cooldown:0};
@@ -32,7 +36,7 @@ function init(){
   for(let r=0;r<4;r++) for(let c=0;c<9;c++)
     aliens.push({x:40+c*44,y:40+r*36,w:28,h:20,alive:true,row:r});
   bullets=[]; aBullets=[]; score=0; lives=3;
-  state='playing'; msg.textContent='Score: 0  ❤️❤️❤️'; btn.textContent='Restart';
+  state='playing'; msg.textContent=`Score: 0  ❤️❤️❤️  Best: ${best}`; btn.textContent='Restart';
   cancelAnimationFrame(raf); loop();
 }
 
@@ -115,18 +119,20 @@ function draw(){
 }
 
 function endGame(won){
+  if(score>best){best=score;saveState();}
   state='over';
   ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
   ctx.fillStyle=won?'#0f0':'#f00';ctx.font='bold 26px monospace';ctx.textAlign='center';
   ctx.fillText(won?'EARTH SAVED!':'INVADED!',W/2,H/2-20);
-  ctx.fillStyle='#fff';ctx.font='16px monospace';ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
-  msg.textContent=(won?'🎉':'💀')+' Score: '+score;
+  ctx.fillStyle='#fff';ctx.font='16px monospace';ctx.fillText('Score: '+score+' | Best: '+best,W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent=(won?'🎉':'💀')+' Score: '+score+' | Best: '+best;
 }
 
 function loop(){update();draw();if(state==='playing')raf=requestAnimationFrame(loop);}
 document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space'){e.preventDefault();if(state==='idle'||state==='over')init();}});
 document.addEventListener('keyup',e=>{keys[e.code]=false;});
 btn.addEventListener('click',init);
+loadState();
 draw();
 </script>
 </body>

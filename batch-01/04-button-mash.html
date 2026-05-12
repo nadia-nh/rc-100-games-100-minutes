@@ -36,6 +36,19 @@ const resultEl = document.getElementById('result');
 const TARGET = 5000, DURATION = 5;
 let clicks = 0, timeLeft = DURATION, running = false, interval = null, best = 0;
 
+const SAVE_KEY = 'button-mash-best';
+
+function saveBest() {
+  localStorage.setItem(SAVE_KEY, best.toString());
+}
+
+function loadBest() {
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) {
+    best = parseInt(saved);
+  }
+}
+
 mashBtn.addEventListener('click', () => {
   if (!running) {
     running = true; clicks = 0; timeLeft = DURATION;
@@ -49,13 +62,15 @@ mashBtn.addEventListener('click', () => {
         clearInterval(interval);
         running = false;
         mashBtn.disabled = false;
-        if (clicks > best) best = clicks;
+        if (clicks > best) { best = clicks; saveBest(); }
         resultEl.textContent = `${clicks} clicks in 5s! Best: ${best} | ${clicks >= 50 ? '🏆 Champion!' : clicks >= 30 ? '💪 Nice!' : '😅 Keep trying!'}`;
       }
     }, 100);
   }
   if (running) { clicks++; countEl.textContent = clicks; }
 });
+
+loadBest();
 </script>
 </body>
 </html>

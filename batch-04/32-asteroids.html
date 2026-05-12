@@ -24,7 +24,11 @@ a { color: #555; font-size: 0.8rem; text-decoration: none; }
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
 const W=480,H=480,msg=document.getElementById('msg'),btn=document.getElementById('btn');
 const TAU=Math.PI*2;
-let state='idle',ship,asteroids,bullets,score,lives,raf,keys={},invincible=0;
+const SAVE_KEY='asteroids-best';
+let state='idle',ship,asteroids,bullets,score,lives,best=0,raf,keys={},invincible=0;
+
+function loadState(){const saved=localStorage.getItem(SAVE_KEY);if(saved){best=JSON.parse(saved).best||0;}}
+function saveState(){localStorage.setItem(SAVE_KEY,JSON.stringify({best}));}
 
 function mkAsteroid(x,y,size){
   const pts=[];for(let i=0;i<10;i++){const a=i/10*TAU,r=size*(0.7+Math.random()*0.5);pts.push({x:Math.cos(a)*r,y:Math.sin(a)*r});}
@@ -38,7 +42,7 @@ function init(){
   ship={x:W/2,y:H/2,vx:0,vy:0,angle:-Math.PI/2,alive:true};
   asteroids=[];bullets=[];score=0;lives=3;invincible=120;
   spawnAsteroids(4);
-  state='playing';msg.textContent='Score: 0  ❤️❤️❤️';btn.textContent='Restart';
+  state='playing';msg.textContent=`Score: 0  ❤️❤️❤️  Best: ${best}`;btn.textContent='Restart';
   cancelAnimationFrame(raf);loop();
 }
 
@@ -114,12 +118,13 @@ function draw(){
 }
 
 function endGame(won){
+  if(score>best){best=score;saveState();}
   state='over';cancelAnimationFrame(raf);
   ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#fff';ctx.font='bold 26px monospace';ctx.textAlign='center';
   ctx.fillText('GAME OVER',W/2,H/2-20);ctx.font='16px monospace';
-  ctx.fillText('Score: '+score,W/2,H/2+16);ctx.textAlign='left';
-  msg.textContent='Game Over — Score: '+score;
+  ctx.fillText('Score: '+score+' | Best: '+best,W/2,H/2+16);ctx.textAlign='left';
+  msg.textContent='Game Over — Score: '+score+' | Best: '+best;
 }
 
 let shootCooldown=0;

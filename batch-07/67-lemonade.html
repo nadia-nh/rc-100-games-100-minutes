@@ -55,8 +55,31 @@ const WEATHERS=[
 ];
 let money=10,lemons=0,ice=0,cups=0,day=1,logs=[],weather=WEATHERS[0];
 
+const SAVE_KEY = 'lemonade-stand-state';
+
+function saveState() {
+  const state = { money, lemons, ice, cups, day, weather, logs };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) {
+    const state = JSON.parse(saved);
+    money = state.money;
+    lemons = state.lemons;
+    ice = state.ice;
+    cups = state.cups;
+    day = state.day;
+    weather = state.weather;
+    logs = state.logs;
+  }
+}
+
 function addLog(t){logs.push(t);if(logs.length>15)logs.shift();
-  const d=document.getElementById('log');d.innerHTML=logs.map(l=>`<div>${l}</div>`).join('');d.scrollTop=d.scrollHeight;}
+  const d=document.getElementById('log');d.innerHTML=logs.map(l=>`<div>${l}</div>`).join('');d.scrollTop=d.scrollHeight;
+  saveState();
+}
 
 function buyLemons(){if(money>=2){money-=2;lemons+=10;addLog('Bought 10 lemons for $2');render();}}
 function buyIce(){if(money>=1){money-=1;ice+=10;addLog('Bought 10 ice for $1');render();}}
@@ -103,7 +126,9 @@ function endGame(){
 document.getElementById('sell-btn').addEventListener('click',sell);
 document.getElementById('lemon-ratio').addEventListener('input',render);
 document.getElementById('ice-ratio').addEventListener('input',render);
-render();addLog('Welcome! Buy supplies and open your stand.');
+loadState();
+render();
+if(logs.length===0) addLog('Welcome! Buy supplies and open your stand.');
 </script>
 </body>
 </html>

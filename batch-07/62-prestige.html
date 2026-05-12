@@ -47,6 +47,27 @@ const UPGRADES=[
 ];
 let count=0,prestige=0,lastTick=Date.now();
 
+const SAVE_KEY = 'prestige-counter-state';
+
+function saveState() {
+  const state = { count, prestige, upgrades: UPGRADES };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) {
+    const state = JSON.parse(saved);
+    count = state.count;
+    prestige = state.prestige;
+    UPGRADES.forEach((u, i) => {
+      if (state.upgrades[i]) {
+        u.owned = state.upgrades[i].owned;
+      }
+    });
+  }
+}
+
 function mult(){return 1+prestige*0.5;}
 function clickPower(){return Math.floor((1+UPGRADES.reduce((s,u)=>s+u.clickBonus*u.owned,0))*mult());}
 function cps(){return Math.floor(UPGRADES.reduce((s,u)=>s+u.cps*u.owned,0)*mult());}
@@ -54,7 +75,7 @@ function prestigeThreshold(){return 10000*Math.pow(5,prestige);}
 
 function tick(){
   const now=Date.now(),dt=(now-lastTick)/1000;lastTick=now;
-  count+=cps()*dt;render();requestAnimationFrame(tick);
+  count+=cps()*dt;render();saveState();requestAnimationFrame(tick);
 }
 
 function fmt(n){
@@ -78,15 +99,16 @@ function render(){
     const d=document.createElement('div');d.className='upg';
     d.innerHTML=`<div><b>${u.name}</b> (${u.owned}) <span style="color:#aaa;font-size:0.8rem">${u.desc}</span></div>`;
     const b=document.createElement('button');b.textContent=`${fmt(c)}`;
-    b.disabled=count<c;b.onclick=()=>{if(count>=c){count-=c;u.owned++;render();}};
+    b.disabled=count<c;b.onclick=()=>{if(count>=c){count-=c;u.owned++;render();saveState();}};
     d.appendChild(b);div.appendChild(d);
   });
 }
 
-document.getElementById('btn-click').onclick=()=>{count+=clickPower();render();};
+document.getElementById('btn-click').onclick=()=>{count+=clickPower();render();saveState();};
 document.getElementById('prestige-btn').onclick=()=>{
-  prestige++;count=0;UPGRADES.forEach(u=>u.owned=0);render();
+  prestige++;count=0;UPGRADES.forEach(u=>u.owned=0);render();saveState();
 };
+loadState();
 render();requestAnimationFrame(tick);
 </script>
 </body>

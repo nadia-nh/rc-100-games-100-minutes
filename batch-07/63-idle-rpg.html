@@ -56,15 +56,37 @@ const UPGRADES=[
 
 let hero,enemy,gold,log;
 
+const SAVE_KEY = 'idle-rpg-state';
+
+function saveState() {
+  const state = { hero, enemy, gold };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) {
+    const state = JSON.parse(saved);
+    hero = state.hero;
+    gold = state.gold;
+    enemy = state.enemy;
+    log = [];
+  } else {
+    hero={hp:30,maxHp:30,mp:30,maxMp:30,atk:8,xp:0,xpNext:20,level:1};
+    gold=10;log=[];spawnEnemy(0);
+  }
+}
+
 function init(){
-  hero={hp:30,maxHp:30,mp:30,maxMp:30,atk:8,xp:0,xpNext:20,level:1};
-  gold=10;log=[];spawnEnemy(0);render();
+  loadState();
+  render();
 }
 
 function spawnEnemy(tier){
   const t=Math.min(tier,ENEMIES.length-1);
   const e=ENEMIES[t];
   enemy={...e,hp:e.hp,tier};
+  saveState();
 }
 
 function addLog(txt,color='#aaa'){
@@ -79,6 +101,7 @@ function gainXp(xp){
   while(hero.xp>=hero.xpNext){hero.xp-=hero.xpNext;hero.level++;hero.xpNext=Math.floor(hero.xpNext*1.6);
     hero.maxHp+=10;hero.hp=hero.maxHp;hero.atk+=3;hero.maxMp+=8;hero.mp=hero.maxMp;
     addLog(`Level up! Now Lv${hero.level}! HP/MP restored.`,'#ffd700');}
+  saveState();
 }
 
 function attack(){
@@ -90,7 +113,7 @@ function attack(){
   hero.hp-=d;addLog(`${enemy.name} attacks for ${d}.`,'#e74c3c');
   if(hero.hp<=0){hero.hp=0;addLog('You died... respawning with half gold.','#e74c3c');
     gold=Math.max(0,Math.floor(gold/2));hero.hp=hero.maxHp;spawnEnemy(0);}
-  render();
+  render();saveState();
 }
 
 function castSpell(i){
@@ -100,12 +123,12 @@ function castSpell(i){
   else{enemy.hp-=sp.dmg;addLog(`${sp.name} hits for ${sp.dmg}!`,'#f80');
     if(enemy.hp<=0){addLog(`${enemy.name} defeated!`,'#ffd700');gainXp(enemy.xp);gold+=enemy.gold;
       spawnEnemy(Math.floor(hero.level/2));render();return;}}
-  render();
+  render();saveState();
 }
 
 function buyUpgrade(i){
   const u=UPGRADES[i];if(gold<u.cost)return;gold-=u.cost;u.apply(hero);
-  addLog(`Bought ${u.name}`,'#9b59b6');render();
+  addLog(`Bought ${u.name}`,'#9b59b6');render();saveState();
 }
 
 function pct(v,m){return Math.max(0,Math.min(100,v/m*100))+'%';}

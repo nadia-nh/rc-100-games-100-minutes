@@ -26,7 +26,10 @@ const ctx = canvas.getContext('2d');
 const msg = document.getElementById('msg');
 const btn = document.getElementById('btn');
 const W = canvas.width, H = canvas.height;
-let state = 'idle', player, obstacles, score, speed, raf, mx = W/2, my = H-50;
+let state = 'idle', player, obstacles, score, speed, raf, mx = W/2, my = H-50, best = 0;
+const SAVE_KEY = 'dodge-best';
+function loadBest() { const b = localStorage.getItem(SAVE_KEY); if (b) best = parseInt(b); }
+function saveBest() { if (score > best) { best = score; localStorage.setItem(SAVE_KEY, best); } }
 
 canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; });
 
@@ -34,6 +37,7 @@ function init() {
   player = { x: W/2, y: H-50, r: 14 };
   obstacles = []; score = 0; speed = 3;
   state = 'playing';
+  msg.textContent = 'Score: 0 (Best: ' + best + ')';
   btn.textContent = 'Restart';
   cancelAnimationFrame(raf);
   loop();
@@ -79,19 +83,21 @@ function draw() {
 }
 
 function endGame() {
+  saveBest();
   state = 'over';
   ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
   ctx.fillText('HIT!', W/2, H/2-20);
   ctx.fillStyle = '#fff'; ctx.font = '16px monospace';
-  ctx.fillText('Score: ' + score, W/2, H/2+16);
+  ctx.fillText('Score: ' + score + ' (Best: ' + best + ')', W/2, H/2+16);
   ctx.textAlign = 'left';
-  msg.textContent = 'Survived ' + score + ' frames!';
+  msg.textContent = 'Survived ' + score + ' frames (Best: ' + best + ')!';
 }
 
 function loop() { update(); draw(); if (state === 'playing') raf = requestAnimationFrame(loop); }
 btn.addEventListener('click', init);
 document.addEventListener('keydown', e => { if (e.code === 'Space' && (state==='idle'||state==='over')) init(); });
+loadBest();
 draw();
 </script>
 </body>

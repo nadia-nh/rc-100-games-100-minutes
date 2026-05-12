@@ -28,14 +28,17 @@ const msg = document.getElementById('msg');
 const btn = document.getElementById('btn');
 const W = canvas.width, H = canvas.height;
 const PIPE_W = 50, GAP = 140, PIPE_SPEED = 2.5, GRAVITY = 0.45, JUMP = -8;
-let state = 'idle', bird, pipes, score, raf;
+let state = 'idle', bird, pipes, score, raf, best = 0;
+const SAVE_KEY = 'flappy-dot-best';
+function loadBest() { const b = localStorage.getItem(SAVE_KEY); if (b) best = parseInt(b); }
+function saveBest() { if (score > best) { best = score; localStorage.setItem(SAVE_KEY, best); } }
 
 function init() {
   bird = { x: 80, y: H / 2, vy: 0, r: 14 };
   pipes = [];
   score = 0;
   state = 'playing';
-  msg.textContent = 'Score: 0';
+  msg.textContent = 'Score: 0 (Best: ' + best + ')';
   btn.textContent = 'Restart';
   cancelAnimationFrame(raf);
   loop();
@@ -99,6 +102,7 @@ function flap() {
 }
 
 function endGame() {
+  saveBest();
   state = 'over';
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(0, 0, W, H);
@@ -107,14 +111,15 @@ function endGame() {
   ctx.textAlign = 'center';
   ctx.fillText('GAME OVER', W/2, H/2 - 20);
   ctx.font = '18px monospace';
-  ctx.fillText('Score: ' + score, W/2, H/2 + 20);
+  ctx.fillText('Score: ' + score + ' (Best: ' + best + ')', W/2, H/2 + 20);
   ctx.textAlign = 'left';
-  msg.textContent = 'Game Over — Score: ' + score;
+  msg.textContent = 'Game Over — Score: ' + score + ' (Best: ' + best + ')';
 }
 
 document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); flap(); } });
 canvas.addEventListener('click', flap);
 btn.addEventListener('click', flap);
+loadBest();
 draw();
 </script>
 </body>

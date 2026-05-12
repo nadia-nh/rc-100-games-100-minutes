@@ -40,12 +40,18 @@ const boardEl = document.getElementById('board');
 const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 const statusEl = document.getElementById('status');
+const SAVE_KEY = '2048-game-state';
+function saveState() { localStorage.setItem(SAVE_KEY, JSON.stringify({grid,score})); }
+function loadState() { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; }
+function loadBest() { const b = localStorage.getItem('2048-best'); if (b) best = parseInt(b); bestEl.textContent = best; }
+function saveBest() { if (score > best) { best = score; localStorage.setItem('2048-best', best); bestEl.textContent = best; } }
 
 function newGame() {
   grid = Array(4).fill(null).map(() => Array(4).fill(0));
   score = 0; scoreEl.textContent = 0;
   statusEl.textContent = 'Use arrow keys to slide';
   addTile(); addTile(); render();
+  saveState();
 }
 
 function addTile() {
@@ -69,7 +75,8 @@ function render() {
     boardEl.appendChild(tile);
   }
   scoreEl.textContent = score;
-  if (score > best) { best = score; bestEl.textContent = best; }
+  saveBest();
+  saveState();
 }
 
 function slide(row) {
@@ -130,7 +137,9 @@ document.addEventListener('keydown', e => {
   if (map[e.key]) { e.preventDefault(); move2(map[e.key]); }
 });
 document.getElementById('btn').addEventListener('click', newGame);
-newGame();
+loadBest();
+const saved = loadState();
+if (saved) { grid = saved.grid; score = saved.score; scoreEl.textContent = score; saveBest(); render(); } else { newGame(); }
 </script>
 </body>
 </html>
