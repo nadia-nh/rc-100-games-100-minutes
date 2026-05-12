@@ -18,8 +18,9 @@ h1 { text-align: center; font-size: 2.2rem; margin-bottom: 4px; color: #fff; }
         padding: 14px 12px; display: flex; flex-direction: column; gap: 6px;
         transition: border-color 0.15s, background 0.15s; min-height: 180px; width: 160px; }
 .card:hover { border-color: #5566cc; background: #1e1e38; }
+.card:not(.locked) { cursor: pointer; }
 .card.locked { opacity: 0.35; pointer-events: none; }
-.card-preview { width: 100%; height: 60px; border-radius: 4px; margin-bottom: 6px; }
+.card-preview { width: 100%; height: 80px; border-radius: 4px; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; font-size: 2rem; line-height: 1; }
 .card-num { font-size: 0.7rem; color: #555; font-weight: 700; font-family: monospace; }
 .card-name { font-size: 0.95rem; font-weight: 700; color: #e8e8f0; line-height: 1.2; }
 .card-genre { font-size: 0.7rem; padding: 2px 7px; border-radius: 99px; font-weight: 700;
@@ -186,6 +187,38 @@ const GENRE_COLOR = {
   Racing:'#0a3a0a', Rhythm:'#0a0a3a', Creative:'#2a0a3a', Luck:'#3a2a3a',
 };
 
+const GAME_EMOJI = {
+  Clicker:'🖱️', Reflex:'⚡', Memory:'🧠', Arcade:'🕹️', Puzzle:'🧩', Word:'✏️',
+  Trivia:'❓', Card:'🃏', Logic:'♟️', Shooter:'🔫', Physics:'🧪', Platformer:'🦘',
+  Runner:'🏃', TowerDef:'🏰', Strategy:'♜', Idle:'⏳', RPG:'🛡️', Racing:'🏎️',
+  Rhythm:'🎵', Creative:'🎨', Luck:'🎰',
+};
+
+const GAME_SLUG_EMOJI = {
+  '01-clicker':'🍪','02-reaction':'⚡','03-number-memory':'🧠','04-button-mash':'🖱️','05-odd-one-out':'🔎',
+  '06-true-false':'✅','07-color-match':'🌈','08-type-speed':'⌨️','09-simon-says':'🎹','10-whack-mole':'🐭',
+  '11-flappy-dot':'🐤','12-breakout':'🟦','13-snake':'🐍','14-pong':'🏓','15-dodge':'🏃','16-memory-match':'🧠',
+  '17-2048':'🧮','18-minesweeper':'💣','19-word-scramble':'🔤','20-hangman':'🪢','21-blackjack':'🃏',
+  '22-higher-lower':'↕️','23-war':'⚔️','24-wordle':'🟩','25-anagram':'🔡','26-crossword':'✍️',
+  '27-num-sequence':'🔢','28-nonogram':'🧩','29-sudoku':'🔢','30-connect-four':'🔵','31-space-invaders':'👾',
+  '32-asteroids':'☄️','33-galaga':'👾','34-top-shooter':'🔫','35-bullet-hell':'💥','36-tank-battle':'🚜',
+  '37-duck-hunt':'🦆','38-missile-cmd':'🚀','39-cannon':'💣','40-turret-def':'🏰','41-platformer':'🦘',
+  '42-inf-runner':'🏃','43-wall-jump':'🧗','44-grav-flip':'🌪️','45-doodle-jump':'🦘','46-rolling-ball':'⚽',
+  '47-pinball':'🎱','48-billiards':'🎱','49-chain-react':'🔗','50-stacking':'🧱','51-sokoban':'📦',
+  '52-sliding':'🧩','53-lights-out':'💡','54-hanoi':'🗼','55-mastermind':'🧠','56-flow-free':'🌊',
+  '57-nim':'♟️','58-dots-boxes':'⚪','59-chess-lite':'♟️','60-hex':'🔷','61-idle-factory':'🏭',
+  '62-prestige':'🔄','63-idle-rpg':'🛡️','64-merge-nums':'➕','65-civ-lite':'🌍','66-stock-market':'📈',
+  '67-lemonade':'🍋','68-word-chain':'🔗','69-typewriter':'⌨️','70-num-crush':'💥','71-maze':'🧭',
+  '72-pacman':'👾','73-tetris':'🧱','74-frogger':'🐸','75-bomberman':'💣','76-dice-poker':'🎲',
+  '77-solitaire':'🂡','78-uno':'🟥','79-battleship':'🚢','80-checkers':'♟️','81-rhythm':'🥁',
+  '82-music-memory':'🎶','83-pixel-art':'🟪','84-spin-wheel':'🎡','85-slot-machine':'🎰','86-trivia':'❓',
+  '87-bingo':'🎯','88-othello':'⚫','89-pacifist':'🕊️','90-ast-duel':'⚔️','91-zelda-room':'🛡️',
+  '92-roguelite':'🗡️','93-tower-def':'🏰','94-racing':'🏎️','95-angry-birds':'🐦','96-typing-dungeon':'⌨️',
+  '97-codename':'🕵️','98-set-game':'🔲','99-inf-plat':'🦘','100-falling-sand':'🌋',
+};
+
+const getGameEmoji = g => GAME_SLUG_EMOJI[g.slug] || GAME_EMOJI[g.genre] || '🎮';
+
 // Detect which files exist by trying to fetch them (or just check checkpoint)
 // For simplicity, we show all cards and let the browser handle 404s on click
 const COMPLETED_BATCH = (() => {
@@ -221,15 +254,23 @@ Object.keys(batches).sort((a,b)=>a-b).forEach(b => {
   const grid = document.createElement('div');
   grid.className = 'grid';
   batches[b].forEach(g => {
+    const locked = g.batch > COMPLETED_BATCH;
     const card = document.createElement('div');
-    card.className = 'card' + (g.batch > COMPLETED_BATCH ? ' locked' : '');
+    card.className = 'card' + (locked ? ' locked' : '');
     card.innerHTML = `
-      <div class="card-preview" style="background: ${GENRE_COLOR[g.genre]};"></div>
+      <div class="card-preview" style="background: ${GENRE_COLOR[g.genre]};">${getGameEmoji(g)}</div>
       <div class="card-num">#${String(g.num).padStart(3,'0')}</div>
       <div class="card-name">${g.name}</div>
       <span class="card-genre ${GENRE_CLASS[g.genre]||''}">${g.genre}</span>
-      ${g.batch <= COMPLETED_BATCH ? `<a href="${g.file}">▶ Play</a>` : '<span style="color:#444;font-size:0.8rem;margin-top:8px">🔒 Coming soon</span>'}
+      ${locked ? '<span style="color:#444;font-size:0.8rem;margin-top:8px">🔒 Coming soon</span>' : ''}
     `;
+    if (!locked) {
+      card.tabIndex = 0;
+      card.onclick = () => location.href = g.file;
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') location.href = g.file;
+      });
+    }
     grid.appendChild(card);
   });
   section.appendChild(grid);
