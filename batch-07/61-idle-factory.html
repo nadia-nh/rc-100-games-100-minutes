@@ -36,7 +36,7 @@ a { color: #aaa; font-size: 0.8rem; text-decoration: none; }
 </div>
 <div id="ui">
   <span id="msg">Click to produce widgets, buy buildings!</span>
-  <button class="main" id="btn">Reset</button>
+  <button class="main" id="reset">Reset</button>
   <a href="../index.html">↩</a>
 </div>
 <script>
@@ -60,11 +60,11 @@ function loadState() {
   const saved = localStorage.getItem(SAVE_KEY);
   if (saved) {
     const state = JSON.parse(saved);
-    widgets = state.widgets;
-    totalWidgets = state.totalWidgets;
+    widgets = Number(state.widgets) || 0;
+    totalWidgets = Number(state.totalWidgets) || 0;
     BUILDINGS.forEach((b, i) => {
       if (state.buildings[i]) {
-        b.count = state.buildings[i].count;
+        b.count = Number(state.buildings[i].count) || 0;
       }
     });
   }
@@ -76,12 +76,14 @@ function cps(){return BUILDINGS.reduce((s,b)=>s+b.cps*b.count,0);}
 function tick(){
   const now=Date.now(),dt=(now-lastTick)/1000;lastTick=now;
   widgets+=cps()*dt;totalWidgets+=cps()*dt;
-  render();saveState();requestAnimationFrame(tick);
+  renderResources();
+  saveState();requestAnimationFrame(tick);
 }
 
 function buy(i){
   const b=BUILDINGS[i],c=cost(b);
-  if(widgets>=c){widgets-=c;b.count++;render();saveState();}
+  console.log('Attempting to buy %s for %d widgets (have %d)', b.name, c, widgets);
+  if(widgets + 1e-6 >= c){widgets-=c;b.count++;render();saveState();}
 }
 
 function fmt(n){
@@ -91,22 +93,32 @@ function fmt(n){
   return Math.floor(n).toString();
 }
 
-function render(){
+function renderResources() {
   document.getElementById('resources').textContent=
     `Widgets: ${fmt(widgets)} | Per sec: ${fmt(cps())} | Total: ${fmt(totalWidgets)}`;
+}
+
+function render(){
+  renderResources();
   const div=document.getElementById('buildings');div.innerHTML='';
   BUILDINGS.forEach((b,i)=>{
     const c=cost(b);
-    const d=document.createElement('div');d.className='building';
+    const d=document.createElement('div');
+    d.className='building';
     d.innerHTML=`<div class="binfo"><div class="bname">${b.name} <span style="color:#888">(${b.count})</span></div>
       <div class="bdesc">${b.desc} · Cost: ${fmt(c)} widgets</div></div>`;
-    const btn=document.createElement('button');btn.textContent='Buy';
-    btn.disabled=widgets<c;btn.onclick=()=>buy(i);d.appendChild(btn);div.appendChild(d);
+    const btn=document.createElement('button');
+    btn.textContent='Buy';
+    const canBuy = widgets + 1e-6 >= c;
+    btn.disabled=!canBuy;
+    btn.onclick=()=>buy(i);
+    d.appendChild(btn);
+    div.appendChild(d);
   });
 }
 
 document.getElementById('clicker').onclick=()=>{widgets+=1;totalWidgets+=1;render();saveState();};
-document.getElementById('btn').onclick=()=>{
+document.getElementById('reset').onclick=()=>{
   widgets=0;totalWidgets=0;BUILDINGS.forEach(b=>b.count=0);lastTick=Date.now();render();localStorage.removeItem(SAVE_KEY);
 };
 loadState();

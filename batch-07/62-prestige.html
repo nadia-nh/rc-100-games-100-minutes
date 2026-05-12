@@ -34,6 +34,7 @@ a { color: #555; font-size: 0.8rem; text-decoration: none; }
 <button id="prestige-btn">✨ Prestige (reset for ×bonus)</button>
 <div id="ui">
   <span id="msg">Click to count · buy upgrades · prestige for multiplier!</span>
+  <button class="main" id="reset">Reset</button>
   <a href="../index.html">↩</a>
 </div>
 <script>
@@ -58,11 +59,11 @@ function loadState() {
   const saved = localStorage.getItem(SAVE_KEY);
   if (saved) {
     const state = JSON.parse(saved);
-    count = state.count;
-    prestige = state.prestige;
+    count = Number(state.count) || 0;
+    prestige = Number(state.prestige) || 0;
     UPGRADES.forEach((u, i) => {
       if (state.upgrades[i]) {
-        u.owned = state.upgrades[i].owned;
+        u.owned = Number(state.upgrades[i].owned) || 0;
       }
     });
   }
@@ -75,7 +76,7 @@ function prestigeThreshold(){return 10000*Math.pow(5,prestige);}
 
 function tick(){
   const now=Date.now(),dt=(now-lastTick)/1000;lastTick=now;
-  count+=cps()*dt;render();saveState();requestAnimationFrame(tick);
+  count+=cps()*dt;renderResources();saveState();requestAnimationFrame(tick);
 }
 
 function fmt(n){
@@ -85,21 +86,26 @@ function fmt(n){
   return Math.floor(n).toString();
 }
 
-function render(){
+function renderResources(){
   document.getElementById('counter').textContent=fmt(count);
   document.getElementById('prestige-level').textContent=`Prestige: ⭐×${prestige}  Multiplier: ×${mult().toFixed(1)}`;
   document.getElementById('btn-click').textContent=`Click! (+${fmt(clickPower())})`;
   const pBtn=document.getElementById('prestige-btn');
   const thresh=prestigeThreshold();
-  if(count>=thresh){pBtn.style.display='block';pBtn.textContent=`✨ Prestige at ${fmt(thresh)} (×${(mult()+0.5).toFixed(1)} bonus)`;}
+  if(count + 1e-6 >= thresh){pBtn.style.display='block';pBtn.textContent=`✨ Prestige at ${fmt(thresh)} (×${(mult()+0.5).toFixed(1)} bonus)`;}
   else pBtn.style.display='none';
+}
+
+function render(){
+  renderResources();
   const div=document.getElementById('upgrades');div.innerHTML='';
   UPGRADES.forEach((u,i)=>{
     const c=Math.floor(u.cost*Math.pow(1.5,u.owned));
     const d=document.createElement('div');d.className='upg';
     d.innerHTML=`<div><b>${u.name}</b> (${u.owned}) <span style="color:#aaa;font-size:0.8rem">${u.desc}</span></div>`;
     const b=document.createElement('button');b.textContent=`${fmt(c)}`;
-    b.disabled=count<c;b.onclick=()=>{if(count>=c){count-=c;u.owned++;render();saveState();}};
+    const canBuy = count + 1e-6 >= c;
+    b.disabled=!canBuy;b.onclick=()=>{console.log('Attempting to buy %s for %d count (have %d)', u.name, c, count);if(count + 1e-6 >= c){count-=c;u.owned++;render();saveState();}};
     d.appendChild(b);div.appendChild(d);
   });
 }
@@ -107,6 +113,9 @@ function render(){
 document.getElementById('btn-click').onclick=()=>{count+=clickPower();render();saveState();};
 document.getElementById('prestige-btn').onclick=()=>{
   prestige++;count=0;UPGRADES.forEach(u=>u.owned=0);render();saveState();
+};
+document.getElementById('reset').onclick=()=>{
+  count=0;prestige=0;UPGRADES.forEach(u=>u.owned=0);lastTick=Date.now();render();localStorage.removeItem(SAVE_KEY);
 };
 loadState();
 render();requestAnimationFrame(tick);
