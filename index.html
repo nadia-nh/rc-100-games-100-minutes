@@ -199,16 +199,16 @@ const batches = {};
 GAME_MANIFEST.forEach(g => { (batches[g.batch] = batches[g.batch] || []).push(g); });
 
 const BATCH_NAMES = {
-  1:'Batch 1 — Clickers, Counters, Reflexes',
-  2:'Batch 2 — Simple Canvas & Easy Puzzles',
-  3:'Batch 3 — Word, Card & Logic',
-  4:'Batch 4 — Arcade & Shooters',
-  5:'Batch 5 — Platformers & Physics',
-  6:'Batch 6 — Puzzle & Strategy Board',
-  7:'Batch 7 — Idle, Upgrades & Word',
-  8:'Batch 8 — Variety Pack',
-  9:'Batch 9 — Experimental & Creative',
-  10:'Batch 10 — Hardest / Showcase',
+  1:'Clickers, Counters, Reflexes',
+  2:'Simple Canvas & Easy Puzzles',
+  3:'Word, Card & Logic',
+  4:'Arcade & Shooters',
+  5:'Platformers & Physics',
+  6:'Puzzle & Strategy Board',
+  7:'Idle, Upgrades & Word',
+  8:'Variety Pack',
+  9:'Experimental & Creative',
+  10:'Hardest / Showcase',
 };
 
 Object.keys(batches).sort((a,b)=>a-b).forEach(b => {
